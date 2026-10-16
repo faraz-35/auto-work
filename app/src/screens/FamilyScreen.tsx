@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Alert, AppState, ScrollView, StyleSheet, Text, View } from 'react-native';
+import Constants from 'expo-constants';
 import MotorAlarms from '../alarm/native';
 import { C } from '../theme';
 import { Screen } from '../components/Screen';
@@ -136,7 +137,7 @@ export function FamilyScreen() {
         <Btn title="Ring a test alarm in 1 minute" onPress={testAlarm} loading={busy} />
       </Card>
 
-      <Text style={s.version}>Ghar v2.0.2 · household {household?.id?.slice(0, 8) ?? '—'}</Text>
+      <Text style={s.version}>Ghar v{Constants.expoConfig?.version ?? '?'} · household {household?.id?.slice(0, 8) ?? '—'}</Text>
     </ScrollView>
     </Screen>
   );

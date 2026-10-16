@@ -1,15 +1,14 @@
-import React from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { DarkTheme, NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
-import { C } from './src/theme';
-import { AppProvider, useApp } from './src/state/AppContext';
-import { TodayScreen } from './src/screens/TodayScreen';
-import { ChoresScreen } from './src/screens/ChoresScreen';
-import { LedgerScreen } from './src/screens/LedgerScreen';
-import { FamilyScreen } from './src/screens/FamilyScreen';
+import { C } from './theme';
+import { AppProvider, useApp } from './state/AppContext';
+import { TodayScreen } from './screens/TodayScreen';
+import { ChoresScreen } from './screens/ChoresScreen';
+import { LedgerScreen } from './screens/LedgerScreen';
+import { FamilyScreen } from './screens/FamilyScreen';
 
 const Tabs = createBottomTabNavigator();
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View, Alert } from 'react-native';
 import { C } from '../theme';
 import { Screen } from '../components/Screen';
@@ -9,14 +9,12 @@ import { formatPKR, groupByMonth, memberTotals, monthLabel } from '../logic/ledg
 /** The home-invoice port: whatever anyone buys goes in here. Insert, read,
  *  and a careful two-tap delete — no editing, by design. */
 export function LedgerScreen() {
-  const { purchases, members, me, actions } = useApp();
+  const { purchases, members, memberName, actions } = useApp();
   const [item, setItem] = useState('');
   const [amount, setAmount] = useState('');
   const [busy, setBusy] = useState(false);
 
   useEffect(() => { void actions.loadPurchases(); }, []);
-
-  const memberName = (id: string) => members.find((m) => m.id === id)?.name ?? '—';
 
   const byMonth = useMemo(() => groupByMonth(purchases ?? []), [purchases]);
 

@@ -35,8 +35,8 @@ fs.writeFileSync(path, src);
 console.log('signing config ensured');
 EOF
 
-echo "$(date '+%F %T') gradle assembleRelease starting" >> PROGRESS.log
+echo "$(date '+%F %T') gradle assembleRelease starting" >> /tmp/ghar-build.log
 cd app/android
 ./gradlew assembleRelease -q --console=plain 2>&1 | tail -40
-echo "$(date '+%F %T') gradle finished rc=$?" >> ../../PROGRESS.log
+echo "$(date '+%F %T') gradle finished rc=$?" >> /tmp/ghar-build.log
 ls -la app/build/outputs/apk/release/ 2>/dev/null || ls -la ~/Programming/motor/app/android/app/build/outputs/apk/release/

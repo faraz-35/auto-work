@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useMemo, useState } from 'react';
+import { Alert, ScrollView, StyleSheet, Text } from 'react-native';
 import { C } from '../theme';
 import { Screen } from '../components/Screen';
 import { Card, Fab, Overflow, Pill, Row, SectionTitle } from '../components/ui';
@@ -10,11 +10,9 @@ import { addDays } from '../logic/rotation';
 import type { Chore } from '../types';
 
 export function ChoresScreen() {
-  const { chores, events, members, actions } = useApp();
+  const { chores, events, memberName, actions } = useApp();
   const [editing, setEditing] = useState<Chore | null>(null);
   const [addOpen, setAddOpen] = useState(false);
-
-  const memberName = (id: string | null) => members.find((m) => m.id === id)?.name ?? '—';
 
   const recurring = useMemo(
     () => chores.filter((c) => c.active && (c.repeat_days != null || c.repeat_monthly_day != null) && c.spawned_from == null),

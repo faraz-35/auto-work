@@ -1,17 +1,16 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Alert, Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { C } from '../theme';
-import { Btn, Card, Field, Pill, Row } from './ui';
+import { Btn, Card, Field, Row } from './ui';
 import { ChoreDraft } from '../db/api';
 import type { Chore } from '../types';
 import { useApp } from '../state/AppContext';
 import { addDays, localDate } from '../logic/rotation';
 import { formatDay } from '../logic/human';
 
-const karachiToday = () => localDate();
-const todayStr = () => karachiToday();
-const tomorrowStr = () => addDays(karachiToday(), 1);
+const todayStr = () => localDate();
+const tomorrowStr = () => addDays(localDate(), 1);
 const humanDay = (d: string) => (dateOk(d) ? formatDay(d) : d);
 function dateOk(d: string) { return /^\d{4}-\d{2}-\d{2}$/.test(d); }
 

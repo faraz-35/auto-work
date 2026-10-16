@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Alert, Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { C } from '../theme';
@@ -7,8 +7,8 @@ import { Btn, Fab, Card, Pill, Row, SectionTitle } from '../components/ui';
 import { ChoreModal } from '../components/ChoreModal';
 import { useApp } from '../state/AppContext';
 import { formatRemaining } from '../logic/alarms';
-import { formatDay, formatShortDate, formatTimeOf, scheduleLabel } from '../logic/human';
-import { assigneeFor, eventFor, occursOn } from '../logic/rotation';
+import { formatShortDate, formatTimeOf, scheduleLabel } from '../logic/human';
+import { assigneeFor, eventFor, localDateOf, occursOn } from '../logic/rotation';
 import type { Chore } from '../types';
 
 export function TodayScreen() {
@@ -23,7 +23,7 @@ export function TodayScreen() {
     return () => clearInterval(t);
   }, []);
 
-  const memberName = (id: string | null) => members.find((m) => m.id === id)?.name ?? '—';
+  const memberName = app.memberName;
 
   const occurrences = useMemo(
     () => chores.filter((c) => c.active && occursOn(c, today)),
@@ -46,7 +46,7 @@ export function TodayScreen() {
   const runningClose = useMemo(
     () => chores.filter((c) =>
       c.active && c.spawned_from != null && c.due_at != null
-      && localDateOfSafe(c.due_at) === today
+      && localDateOf(c.due_at) === today
       && !eventFor(events, c.id, today)),
     [chores, events, today]
   );
@@ -211,11 +211,6 @@ export function TodayScreen() {
       <Fab icon="add" label="Add chore" onPress={() => setAddOpen(true)} />
     </Screen>
   );
-}
-
-/** Karachi date of an ISO stamp, without pulling config into JSX helpers. */
-function localDateOfSafe(iso: string): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Karachi' }).format(new Date(iso));
 }
 
 function SwapModal({

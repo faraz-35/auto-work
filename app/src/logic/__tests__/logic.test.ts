@@ -247,7 +247,7 @@ describe('ledger', () => {
 
 describe('human dates', () => {
   const TODAY = '2026-10-16';  // test-local today
-  const { formatDay, formatTime12, formatTimeOf, scheduleLabel } = require('../human');
+  const { formatDay, formatTime12, scheduleLabel } = require('../human');
 
   test('formatDay: today, tomorrow, yesterday, else short', () => {
     expect(formatDay('2026-10-16', TODAY)).toBe('Today');

@@ -1,27 +1,20 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { PermissionsAndroid } from 'react-native';
 import MotorAlarms from '../alarm/native';
-import { PROFILE_KEY, SNAPSHOT_KEY } from '../config';
+import { syncAlarms, pushAlarmSet } from '../alarm/sync';
 import type { Chore, ChoreEvent, Household, Member, Profile, Purchase, Swap } from '../types';
 import type { ChoreDraft } from '../db/api';
-import { ChoreOverrides, localDate, overrideKey } from '../logic/rotation';
-import { alarmsToNativeJson, computeDesiredAlarms } from '../logic/alarms';
-import { ensureDeviceSession, db } from '../db/client';
+import type { ChoreOverrides } from '../logic/rotation';
+import { localDate } from '../logic/rotation';
+import { computeDesiredAlarms } from '../logic/alarms';
+import { errorMessage } from '../logic/errors';
+import { ensureDeviceSession } from '../db/client';
 import * as api from '../db/api';
+import { loadSnapshot, saveSnapshot, type SnapshotData } from './snapshot';
+import { loadProfile, saveProfile } from './profile';
+import { watchHousehold } from './realtime';
 
 type Phase = 'boot' | 'error' | 'ready';
-
-type Snapshot = {
-  v: 2;
-  household: Household | null;
-  members: Member[];
-  chores: Chore[];
-  events: ChoreEvent[];
-  overrides: ChoreOverrides;
-  swaps: Swap[];
-  savedAt: string;
-};
 
 type AppState = {
   phase: Phase;
@@ -37,23 +30,24 @@ type AppState = {
   purchases: Purchase[] | null;  // null = ledger not loaded yet
   today: string;
   me: Member | null;
+  memberName: (id: string | null) => string;
   refresh: () => Promise<void>;
   actions: {
     retry: () => void;
     renameMe: (name: string) => Promise<void>;
-    startChore: (choreId: string) => Promise<void>;
-    completeChore: (choreId: string, date?: string) => Promise<void>;
-    skipChore: (choreId: string) => Promise<void>;
+    startChore: (choreId: string) => void;
+    completeChore: (choreId: string, date?: string) => void;
+    skipChore: (choreId: string) => void;
     saveChore: (draft: ChoreDraft) => Promise<void>;
     editChore: (choreId: string, patch: Partial<Chore>) => Promise<void>;
     archiveChore: (choreId: string) => Promise<void>;
-    requestSwap: (choreId: string, toMemberId: string | null) => Promise<void>;
-    acceptSwap: (requestId: string) => Promise<void>;
-    cancelSwap: (requestId: string) => Promise<void>;
+    requestSwap: (choreId: string, toMemberId: string | null) => void;
+    acceptSwap: (requestId: string) => void;
+    cancelSwap: (requestId: string) => void;
     saveSettings: (patch: Partial<Pick<Household, 'snooze_minutes'>>) => Promise<void>;
     loadPurchases: () => Promise<void>;
-    addPurchase: (item: string, amount: number) => Promise<void>;
-    deletePurchase: (purchaseId: string) => Promise<void>;
+    addPurchase: (item: string, amount: number) => void;
+    deletePurchase: (purchaseId: string) => void;
     ringTestAlarm: () => Promise<void>;
   };
 };
@@ -74,11 +68,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [purchases, setPurchases] = useState<Purchase[] | null>(null);
   const [today, setToday] = useState(localDate());
   const [reloadKey, setReloadKey] = useState(0);
-  const appliedAlarms = useRef<string>('');
-
-  const persistSnapshot = useCallback((data: Omit<Snapshot, 'v' | 'savedAt'>) => {
-    void AsyncStorage.setItem(SNAPSHOT_KEY, JSON.stringify({ ...data, v: 2, savedAt: new Date().toISOString() } as Snapshot));
-  }, []);
 
   const refresh = useCallback(async () => {
     if (!profile) return;
@@ -93,11 +82,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setToday(localDate());
       setStale(false);
       setError(null);
-      persistSnapshot({ household: data.household, members: data.members, chores: data.chores, events: data.events, overrides: data.overrides, swaps: data.swaps });
+      const snapshot: SnapshotData = {
+        household: data.household, members: data.members, chores: data.chores,
+        events: data.events, overrides: data.overrides, swaps: data.swaps,
+      };
+      saveSnapshot(snapshot);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(errorMessage(e));
     }
-  }, [profile, persistSnapshot]);
+  }, [profile]);
 
   // bootstrap: cached profile + snapshot render instantly; otherwise the
   // device signs itself in and joins the household invisibly (default name,
@@ -105,73 +98,45 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     (async () => {
       try {
-        const [rawProfile, rawSnapshot] = await Promise.all([
-          AsyncStorage.getItem(PROFILE_KEY),
-          AsyncStorage.getItem(SNAPSHOT_KEY),
-        ]);
+        const [cachedProfile, snapshot] = await Promise.all([loadProfile(), loadSnapshot()]);
         await ensureDeviceSession();
-        let p: Profile;
-        if (rawProfile) {
-          p = JSON.parse(rawProfile);
-        } else {
-          p = await api.ensureHousehold('Me');
-          await AsyncStorage.setItem(PROFILE_KEY, JSON.stringify(p));
-        }
-        if (rawSnapshot) {
-          const snap: Snapshot = JSON.parse(rawSnapshot);
-          if (snap.v === 2) {
-            setHousehold(snap.household);
-            setMembers(snap.members);
-            setChores(snap.chores);
-            setEvents(snap.events);
-            setOverrides(snap.overrides ?? {});
-            setSwaps(snap.swaps ?? []);
-            setStale(true);
-          }
+        const p = cachedProfile ?? await api.ensureHousehold('Me');
+        if (!cachedProfile) saveProfile(p);
+        if (snapshot) {
+          setHousehold(snapshot.household);
+          setMembers(snapshot.members);
+          setChores(snapshot.chores);
+          setEvents(snapshot.events);
+          setOverrides(snapshot.overrides ?? {});
+          setSwaps(snapshot.swaps ?? []);
+          setStale(true);
         }
         setProfile(p);
         setPhase('ready');
       } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
+        setError(errorMessage(e));
         setPhase('error');
       }
     })();
   }, [reloadKey]);
 
   useEffect(() => {
-    if (phase === 'ready') {
-      (async () => {
-        try {
-          await ensureDeviceSession();
-        } catch (e) {
-          setError(e instanceof Error ? e.message : String(e));  // offline: keep showing the snapshot
-        }
-        await refresh();
-      })();
-    }
+    if (phase !== 'ready') return;
+    (async () => {
+      try {
+        await ensureDeviceSession();
+      } catch (e) {
+        setError(errorMessage(e));  // offline: keep showing the snapshot
+      }
+      await refresh();
+    })();
   }, [phase, reloadKey, refresh]);
 
-  // realtime: any household-row change (chores, events, members, swaps,
-  // purchases, chore_assignments) or the household's own settings row
-  // triggers a refetch
   useEffect(() => {
     if (!profile) return;
-    const channel = db.channel(`household-${profile.householdId}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', filter: `household_id=eq.${profile.householdId}` },
-        () => { setReloadKey((k) => k + 1); }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'households', filter: `id=eq.${profile.householdId}` },
-        () => { setReloadKey((k) => k + 1); }
-      )
-      .subscribe();
-    return () => { void db.removeChannel(channel); };
+    return watchHousehold(profile.householdId, () => setReloadKey((k) => k + 1));
   }, [profile]);
 
-  // notification permission (Android 13+)
   useEffect(() => {
     if (phase !== 'ready') return;
     void PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS).catch(() => undefined);
@@ -182,6 +147,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [members, profile]
   );
 
+  const memberName = useCallback(
+    (id: string | null) => members.find((m) => m.id === id)?.name ?? '—',
+    [members]
+  );
+
   // reconcile the native alarm engine with desired state (local-first: alarms
   // live on the assignee's phone; the server only feeds them state)
   const desiredAlarms = useMemo(
@@ -190,10 +160,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   );
   useEffect(() => {
     if (phase !== 'ready') return;
-    const key = alarmsToNativeJson(desiredAlarms);
-    if (key === appliedAlarms.current) return;
-    appliedAlarms.current = key;
-    MotorAlarms.syncAlarms(key).catch((e) => setError(String(e)));
+    syncAlarms(desiredAlarms, setError);
   }, [phase, desiredAlarms]);
 
   // a minute ticker so "today" rolls over on screen and stale days age out
@@ -207,7 +174,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const writeBehind = useCallback((local: () => void, write: () => Promise<void>) => {
     local();
     write().catch(async (e) => {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(errorMessage(e));
       await refresh();
     });
   }, [refresh]);
@@ -225,28 +192,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (trimmed.length < 1 || trimmed.length > 30) return;
       writeBehind(
         () => setMembers((prev) => prev.map((m) => (m.id === me.id ? { ...m, name: trimmed } : m))),
-        async () => { await api.renameMember(me.id, trimmed); }
+        async () => { await api.renameMember(me.id, trimmed); },
       );
     },
 
     startChore(choreId) {
       const chore = chores.find((c) => c.id === choreId);
-      if (!chore || !me || !household) return Promise.resolve();
+      if (!chore || !me || !household) return;
       const now = new Date().toISOString();
+      const spawnId = `tmp-spawn-${choreId}-${today}`;
       writeBehind(
         () => {
-          setEvents((prev) => {
-            const rest = prev.filter((e) => !(e.chore_id === choreId && e.on_date === today));
-            return [...rest, {
+          setEvents((prev) => [
+            ...prev.filter((e) => !(e.chore_id === choreId && e.on_date === today)),
+            {
               id: `tmp-${choreId}-${today}`, household_id: household.id, chore_id: choreId, on_date: today,
               status: 'started' as const, started_at: now, started_by: me.id, done_at: null, done_by: null, created_at: now,
-            }];
-          });
+            },
+          ]);
           if (chore.duration_minutes != null) {
             setChores((prev) => [
-              ...prev.filter((c) => c.spawned_from !== `tmp-${choreId}-${today}`),
+              ...prev.filter((c) => c.spawned_from !== spawnId),
               {
-                id: `tmp-spawn-${choreId}-${today}`, household_id: household.id,
+                id: spawnId, household_id: household.id,
                 title: `Close: ${chore.title}`, note: null,
                 assignee_member_id: me.id, rotate: false, rotation_offset: 0, strict: true,
                 due_at: new Date(Date.now() + chore.duration_minutes! * 60_000).toISOString(),
@@ -258,14 +226,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             ]);
           }
         },
-        async () => { await api.startChore(choreId, today); }
+        async () => { await api.startChore(choreId, today); },
       );
-      return Promise.resolve();
     },
 
     completeChore(choreId, date = today) {
       const chore = chores.find((c) => c.id === choreId);
-      if (!chore || !me || !household) return Promise.resolve();
+      if (!chore || !me || !household) return;
       const now = new Date().toISOString();
       const parentEventId = chore.spawned_from;
       writeBehind(
@@ -284,13 +251,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             return next;
           });
         },
-        async () => { await api.completeChore(choreId, date); }
+        () => api.completeChore(choreId, date),
       );
-      return Promise.resolve();
     },
 
     skipChore(choreId) {
-      if (!me || !household) return Promise.resolve();
+      if (!me || !household) return;
       const now = new Date().toISOString();
       writeBehind(
         () => {
@@ -302,9 +268,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             },
           ]);
         },
-        async () => { await api.skipChore(choreId, today); }
+        () => api.skipChore(choreId, today),
       );
-      return Promise.resolve();
     },
 
     async saveChore(draft) {
@@ -323,28 +288,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     },
 
     requestSwap(choreId, toMemberId) {
-      if (!profile || !me) return Promise.resolve();
+      if (!profile || !me) return;
       writeBehind(
         () => {},
-        async () => { await api.requestSwap(profile.householdId, choreId, today, me.id, toMemberId); }
+        () => api.requestSwap(profile.householdId, choreId, today, me.id, toMemberId),
       );
-      return Promise.resolve();
     },
 
     acceptSwap(requestId) {
-      writeBehind(
-        () => {},
-        async () => { await api.acceptSwap(requestId); }
-      );
-      return Promise.resolve();
+      writeBehind(() => {}, () => api.acceptSwap(requestId));
     },
 
     cancelSwap(requestId) {
-      writeBehind(
-        () => {},
-        async () => { await api.cancelSwap(requestId); }
-      );
-      return Promise.resolve();
+      writeBehind(() => {}, () => api.cancelSwap(requestId));
     },
 
     async saveSettings(patch) {
@@ -359,12 +315,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       try {
         setPurchases(await api.fetchPurchases(profile.householdId));
       } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
+        setError(errorMessage(e));
       }
     },
 
     addPurchase(item, amount) {
-      if (!profile || !me) return Promise.resolve();
+      if (!profile || !me) return;
       const now = new Date().toISOString();
       writeBehind(
         () => {
@@ -373,18 +329,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             item, amount, created_at: now,
           }, ...(prev ?? [])]);
         },
-        async () => { await api.addPurchase(profile.householdId, me.id, item, amount); }
+        () => api.addPurchase(profile.householdId, me.id, item, amount).then(() => undefined),
       );
-      return Promise.resolve();
     },
 
     deletePurchase(purchaseId) {
       setPurchases((prev) => (prev ?? []).filter((p) => p.id !== purchaseId));
-      api.deletePurchase(purchaseId).catch((e) => {
-        setError(e instanceof Error ? e.message : String(e));
-        void refresh();
+      api.deletePurchase(purchaseId).catch(async (e) => {
+        setError(errorMessage(e));
+        await refresh();
       });
-      return Promise.resolve();
     },
 
     async ringTestAlarm() {
@@ -396,14 +350,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         body: 'If you see this, alarms work on this phone.',
         rechain: false,
       }];
-      const combined = [...desiredAlarms.filter((a) => a.id !== 'test'), ...test];
-      await MotorAlarms.syncAlarms(alarmsToNativeJson(combined));
+      await pushAlarmSet([...desiredAlarms.filter((a) => a.id !== 'test'), ...test]);
     },
   }), [chores, events, household, me, profile, purchases, refresh, today, writeBehind, desiredAlarms]);
 
   const value: AppState = {
     phase, error, stale, profile, household, members, chores, events, overrides, swaps, purchases,
-    today, me, refresh, actions,
+    today, me, memberName, refresh, actions,
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
