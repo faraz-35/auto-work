@@ -116,7 +116,7 @@ export function FamilyScreen() {
         />
         <View style={{ gap: 6 }}>
           <Text style={s.checkLabel}>3. Autostart after reboot (manual on Xiaomi / Infinix)</Text>
-          <Btn title="Open autostart settings" kind="ghost" onPress={() => MotorAlarms.openAutostartSettings()} />
+          <Btn title="Open autostart settings" kind="link" onPress={() => MotorAlarms.openAutostartSettings()} />
           <Text style={s.meta}>
             On Redmi: Security app → Permissions → Autostart → enable Ghar. On Infinix/HiOS the
             toggle lives in Phone Master or Settings → Apps → Ghar → autostart.
@@ -126,7 +126,7 @@ export function FamilyScreen() {
           <Text style={s.checkLabel}>
             4. Alarms that take over the screen (manual on Xiaomi / Infinix)
           </Text>
-          <Btn title="Open app permissions" kind="ghost" onPress={() => MotorAlarms.openAppDetails()} />
+          <Btn title="Open app permissions" kind="link" onPress={() => MotorAlarms.openAppDetails()} />
           <Text style={s.meta}>
             In the app's permission page, also allow "Display pop-up windows while running in the
             background" (Redmi) / "Display pop-up windows" (Infinix). Without it the alarm still
@@ -153,14 +153,14 @@ function CheckRow({
         <Text style={[s.checkLabel, { flex: 1 }]}>{label}</Text>
         {ok === undefined ? <Pill text="…" tone="dim" /> : ok ? <Pill text="ok" tone="good" /> : <Pill text="needed" tone="bad" />}
       </Row>
-      {ok === false && <Btn title={fix} kind="ghost" onPress={onFix} />}
+      {ok === false && <Btn title={fix} kind="link" onPress={onFix} />}
     </View>
   );
 }
 
 const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: C.bg },
-  content: { padding: 20, gap: 16, paddingBottom: 40 },
+  content: { padding: 20, gap: 16, paddingBottom: 96 },
   meta: { color: C.dim, fontSize: 13 },
   member: { color: C.text, fontSize: 16, fontWeight: '500' },
   checkLabel: { color: C.text, fontSize: 15 },

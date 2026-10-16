@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { C } from '../theme';
 import { Screen } from '../components/Screen';
-import { Btn, Card, Pill, Row, SectionTitle } from '../components/ui';
+import { Card, Fab, Overflow, Pill, Row, SectionTitle } from '../components/ui';
 import { ChoreModal } from '../components/ChoreModal';
 import { useApp } from '../state/AppContext';
 import { formatDay, scheduleLabel } from '../logic/human';
@@ -12,6 +12,7 @@ import type { Chore } from '../types';
 export function ChoresScreen() {
   const { chores, events, members, actions } = useApp();
   const [editing, setEditing] = useState<Chore | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
 
   const memberName = (id: string | null) => members.find((m) => m.id === id)?.name ?? '—';
 
@@ -30,14 +31,20 @@ export function ChoresScreen() {
     const parts = [scheduleLabel(c)];
     if (c.rotate) parts.push('rotating');
     else if (c.assignee_member_id) parts.push(memberName(c.assignee_member_id));
-    if (c.amount != null) parts.push(`Rs ${c.amount.toLocaleString('en-PK')}`);
     return parts.join(' · ');
   };
 
-  const archive = (c: Chore) =>
+  const confirmStop = (c: Chore) =>
     Alert.alert(`Stop "${c.title}"?`, 'It disappears from everyone\'s today list. History stays.', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Stop it', style: 'destructive', onPress: () => actions.archiveChore(c.id).catch(showErr) },
+      { text: 'Keep it', style: 'cancel' },
+      { text: 'Stop', style: 'destructive', onPress: () => actions.archiveChore(c.id).catch(showErr) },
+    ]);
+
+  const choreMenu = (c: Chore) =>
+    Alert.alert(c.title, scheduleLine(c), [
+      { text: 'Edit', onPress: () => setEditing(c) },
+      { text: c.due_at != null ? 'Cancel chore' : 'Stop chore', style: 'destructive', onPress: () => confirmStop(c) },
+      { text: 'Close', style: 'cancel' },
     ]);
 
   const activity = useMemo(() => {
@@ -61,16 +68,10 @@ export function ChoresScreen() {
           <Card key={c.id}>
             <Row style={{ justifyContent: 'space-between' }}>
               <Text style={s.title}>{c.title}</Text>
-              <Row style={{ gap: 6 }}>
-                {c.strict && <Pill text="alarm" tone="warn" />}
-                {c.rotate ? <Pill text="rotating" tone="dim" /> : null}
-              </Row>
+              {c.strict && <Pill text="alarm" tone="warn" />}
+              <Overflow label={`Options for ${c.title}`} onPress={() => choreMenu(c)} />
             </Row>
             <Text style={s.meta}>{scheduleLine(c)}</Text>
-            <Row>
-              <Btn title="Edit" kind="ghost" onPress={() => setEditing(c)} />
-              <Btn title="Stop" kind="ghost" onPress={() => archive(c)} />
-            </Row>
           </Card>
         ))}
         {recurring.length === 0 && <Text style={s.meta}>Nothing recurring yet — add chores from the Today tab.</Text>}
@@ -85,13 +86,10 @@ export function ChoresScreen() {
                   <Row style={{ gap: 6 }}>
                     {c.strict && <Pill text="alarm" tone="warn" />}
                     {c.amount != null && <Pill text={`Rs ${c.amount.toLocaleString('en-PK')}`} tone="dim" />}
+                    <Overflow label={`Options for ${c.title}`} onPress={() => choreMenu(c)} />
                   </Row>
                 </Row>
                 <Text style={s.meta}>{scheduleLine(c)}</Text>
-                <Row>
-                  <Btn title="Edit" kind="ghost" onPress={() => setEditing(c)} />
-                  <Btn title="Cancel" kind="ghost" onPress={() => archive(c)} />
-                </Row>
               </Card>
             ))}
           </>
@@ -113,7 +111,9 @@ export function ChoresScreen() {
         </Card>
 
         <ChoreModal visible={editing != null} editing={editing} onClose={() => setEditing(null)} />
+        <ChoreModal visible={addOpen} onClose={() => setAddOpen(false)} />
       </ScrollView>
+      <Fab icon="add" label="Add chore" onPress={() => setAddOpen(true)} />
     </Screen>
   );
 }
@@ -124,7 +124,7 @@ function showErr(e: unknown) {
 
 const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: C.bg },
-  content: { padding: 20, gap: 16, paddingBottom: 40 },
+  content: { padding: 20, gap: 16, paddingBottom: 96 },
   title: { color: C.text, fontSize: 16, fontWeight: '600', flex: 1 },
   meta: { color: C.dim, fontSize: 13 },
   activity: { color: C.dim, fontSize: 14, flex: 1 },

@@ -5,8 +5,10 @@ export const C = {
   border: '#26262b',
   text: '#f4f4f5',
   dim: '#8b8b93',
-  accent: '#22d3ee',
-  accentBg: '#0e3a42',
+  // interactive layer is bright monochrome; color is reserved for meaning
+  // (good = all clear, warn = alarm/overdue, bad = overdue)
+  accent: '#e7e5e4',
+  accentBg: '#26262b',
   good: '#34d399',
   goodBg: '#0d3527',
   warn: '#fbbf24',

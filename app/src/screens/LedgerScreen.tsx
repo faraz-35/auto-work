@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View, Alert } from 'react-native';
 import { C } from '../theme';
 import { Screen } from '../components/Screen';
-import { Btn, Card, Field, Pill, Row, SectionTitle } from '../components/ui';
+import { Btn, Card, Field, Overflow, Row, SectionTitle } from '../components/ui';
 import { useApp } from '../state/AppContext';
 import { formatPKR, groupByMonth, memberTotals, monthLabel } from '../logic/ledger';
 
@@ -13,7 +13,6 @@ export function LedgerScreen() {
   const [item, setItem] = useState('');
   const [amount, setAmount] = useState('');
   const [busy, setBusy] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   useEffect(() => { void actions.loadPurchases(); }, []);
 
@@ -42,7 +41,7 @@ export function LedgerScreen() {
         <Card style={{ gap: 12 }}>
           <Field label="What did you buy" value={item} onChangeText={setItem} placeholder="Groceries" />
           <Field label="How much (Rs)" value={amount} onChangeText={setAmount} keyboardType="number-pad" placeholder="3250" />
-          <Btn title="Add to ledger" onPress={add} loading={busy} disabled={!item.trim() || !(Number(amount) > 0)} />
+          <Btn title="Add" compact onPress={add} loading={busy} disabled={!item.trim() || !(Number(amount) > 0)} />
         </Card>
 
         {purchases == null && <Text style={s.meta}>loading the ledger…</Text>}
@@ -65,17 +64,14 @@ export function LedgerScreen() {
                         {memberName(p.member_id)} · {p.created_at.slice(8, 10)} {monthLabel(p.created_at.slice(0, 7)).slice(0, 3)}
                       </Text>
                     </View>
-                    {confirmDelete === p.id ? (
-                      <Row style={{ gap: 6 }}>
-                        <Btn title="Really delete" kind="danger" onPress={() => { actions.deletePurchase(p.id); setConfirmDelete(null); }} />
-                        <Btn title="Keep" kind="ghost" onPress={() => setConfirmDelete(null)} />
-                      </Row>
-                    ) : (
-                      <Row style={{ gap: 6 }}>
-                        <Text style={s.amount}>{formatPKR(p.amount)}</Text>
-                        <Text style={s.delete} onPress={() => setConfirmDelete(p.id)}>delete</Text>
-                      </Row>
-                    )}
+                    <Text style={s.amount}>{formatPKR(p.amount)}</Text>
+                    <Overflow
+                      label={`Options for ${p.item}`}
+                      onPress={() => Alert.alert('Delete this entry?', `${p.item} · ${formatPKR(p.amount)}`, [
+                        { text: 'Keep', style: 'cancel' },
+                        { text: 'Delete', style: 'destructive', onPress: () => actions.deletePurchase(p.id) },
+                      ])}
+                    />
                   </Row>
                 ))}
               </Card>
@@ -101,10 +97,9 @@ export function LedgerScreen() {
 
 const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: C.bg },
-  content: { padding: 20, gap: 12, paddingBottom: 40 },
+  content: { padding: 20, gap: 12, paddingBottom: 96 },
   total: { color: C.accent, fontSize: 16, fontWeight: '800', fontVariant: ['tabular-nums'] },
   item: { color: C.text, fontSize: 15, fontWeight: '500' },
   amount: { color: C.text, fontSize: 15, fontVariant: ['tabular-nums'] },
   meta: { color: C.dim, fontSize: 12 },
-  delete: { color: C.dim, fontSize: 12, textDecorationLine: 'underline' },
 });

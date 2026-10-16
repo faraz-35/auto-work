@@ -3,7 +3,7 @@ import { Alert, Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { C } from '../theme';
 import { Screen } from '../components/Screen';
-import { Btn, Card, Pill, Row, SectionTitle } from '../components/ui';
+import { Btn, Fab, Card, Pill, Row, SectionTitle } from '../components/ui';
 import { ChoreModal } from '../components/ChoreModal';
 import { useApp } from '../state/AppContext';
 import { formatRemaining } from '../logic/alarms';
@@ -87,15 +87,12 @@ export function TodayScreen() {
   return (
     <Screen>
       <ScrollView style={s.screen} contentContainerStyle={s.content}>
-        <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
-          <SectionTitle>Today · {formatShortDate(today)}</SectionTitle>
-          <Btn title="+ Add chore" kind="ghost" onPress={() => setAddOpen(true)} />
-        </Row>
+        <SectionTitle>Today · {formatShortDate(today)}</SectionTitle>
 
         {stale && <Text style={s.stale}>showing saved state — refreshing…</Text>}
         {error && !stale && <Text style={s.stale}>{error}</Text>}
 
-        <Card style={{ alignItems: 'center', paddingVertical: 24 }}>
+        <Card style={{ paddingVertical: 20 }}>
           <Text style={[s.heroState, { color: onMe === 0 ? C.good : C.text }]}>
             {onMe === 0 ? 'All clear' : onMe === 1 ? 'One thing on you' : `${onMe} things on you`}
           </Text>
@@ -122,10 +119,7 @@ export function TodayScreen() {
                 {memberName(c.assignee_member_id)} has to close it
                 {remaining != null && remaining < 0 ? ' · overdue' : ` · alarm at ${c.due_at ? formatTimeOf(c.due_at) : '—'}`}
               </Text>
-              <Btn
-                title="I closed it"
-                onPress={() => guard(() => actions.completeChore(c.id, today))}
-              />
+              <Btn title="I closed it" compact onPress={() => guard(() => actions.completeChore(c.id, today))} />
             </Card>
           );
         })}
@@ -152,12 +146,12 @@ export function TodayScreen() {
                 )}
               </Row>
               {isTurn ? (
-                <Btn title={`Start — ${c.duration_minutes} min run`} onPress={() => guard(() => actions.startChore(c.id))} />
+                <Btn title={`Start — ${c.duration_minutes} min`} compact onPress={() => guard(() => actions.startChore(c.id))} />
               ) : (
-                <Btn title="Done" onPress={() => guard(() => actions.completeChore(c.id))} />
+                <Btn title="Done" compact onPress={() => guard(() => actions.completeChore(c.id))} />
               )}
               {(c.rotate || c.repeat_days != null) && (
-                <Btn title="I can't — ask someone else" kind="ghost" onPress={() => setSwapFor(c)} />
+                <Btn title="I can't — ask someone else" kind="link" onPress={() => setSwapFor(c)} />
               )}
             </Card>
           );
@@ -168,12 +162,9 @@ export function TodayScreen() {
             <SectionTitle>Around the house</SectionTitle>
             {byMember.map(([name, list]) => (
               <Card key={name} style={{ gap: 8 }}>
-                <Row style={{ justifyContent: 'space-between' }}>
-                  <Text style={s.cardTitle}>{name}</Text>
-                  <Pill text={`${list.length}`} tone="dim" />
-                </Row>
+                <Text style={s.cardTitle}>{name}</Text>
                 {list.map((c) => (
-                  <Text key={c.id} style={s.meta}>• {c.title}{c.amount != null ? ` (Rs ${c.amount.toLocaleString('en-PK')})` : ''}</Text>
+                  <Text key={c.id} style={s.meta}>{c.title}{c.amount != null ? ` (Rs ${c.amount.toLocaleString('en-PK')})` : ''}</Text>
                 ))}
               </Card>
             ))}
@@ -217,6 +208,7 @@ export function TodayScreen() {
           }}
         />
       </ScrollView>
+      <Fab icon="add" label="Add chore" onPress={() => setAddOpen(true)} />
     </Screen>
   );
 }
@@ -254,13 +246,12 @@ function SwapModal({
                 Whoever accepts covers it, and repays you by taking your next turn of this chore.
               </Text>
               <Btn title="Ask anyone in the house" onPress={() => onSubmit(null)} />
-              <Text style={s.or}>or pick someone specific:</Text>
               {others.map((m) => (
-                <Btn key={m.id} title={`Ask ${m.name}`} kind="ghost" onPress={() => onSubmit(m.id)} />
+                <Btn key={m.id} title={`Ask ${m.name}`} kind="link" onPress={() => onSubmit(m.id)} />
               ))}
             </>
           )}
-          <Btn title="Close" kind="ghost" onPress={onClose} />
+          <Btn title="Close" kind="link" onPress={onClose} />
         </View>
       </View>
     </Modal>
@@ -269,9 +260,9 @@ function SwapModal({
 
 const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: C.bg },
-  content: { padding: 20, gap: 16, paddingBottom: 40 },
-  heroState: { fontSize: 22, fontWeight: '700', letterSpacing: -0.3 },
-  heroMeta: { color: C.dim, fontSize: 14, textAlign: 'center', marginTop: 6 },
+  content: { padding: 20, gap: 16, paddingBottom: 96 },
+  heroState: { fontSize: 20, fontWeight: '700', letterSpacing: -0.3 },
+  heroMeta: { color: C.dim, fontSize: 14, marginTop: 4 },
   cardTitle: { color: C.text, fontSize: 16, fontWeight: '600', flex: 1 },
   countdown: { fontSize: 26, fontWeight: '800', fontVariant: ['tabular-nums'] },
   amount: { color: C.text, fontSize: 14, fontVariant: ['tabular-nums'] },

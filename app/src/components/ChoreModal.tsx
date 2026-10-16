@@ -231,7 +231,7 @@ export function ChoreModal({ visible, onClose, editing = null }: Props) {
             )}
 
             <Btn title={editing ? 'Save changes' : 'Add chore'} onPress={submit} loading={busy} />
-            <Btn title="Cancel" kind="ghost" onPress={onClose} />
+            <Btn title="Cancel" kind="link" onPress={onClose} />
           </ScrollView>
         </View>
       </View>
