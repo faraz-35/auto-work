@@ -12,3 +12,4 @@ keystore.env
 Motor-*.apk
 packages/motor-alarms/android/build/
 packages/motor-alarms/android/.gradle/
+Ghar-*.apk
