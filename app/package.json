@@ -1,19 +1,20 @@
 {
   "name": "app",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "main": "index.ts",
   "dependencies": {
+    "@expo/vector-icons": "^15.1.1",
     "@react-native-async-storage/async-storage": "^3.1.1",
     "@react-navigation/bottom-tabs": "^7.18.18",
     "@react-navigation/native": "^7.3.18",
+    "@supabase/supabase-js": "^2.112.4",
     "expo": "~57.0.18",
     "expo-status-bar": "~57.0.1",
     "motor-alarms": "file:../packages/motor-alarms",
     "react": "19.2.3",
     "react-native": "0.86.3",
     "react-native-safe-area-context": "^5.9.1",
-    "react-native-screens": "^4.27.0",
-    "@supabase/supabase-js": "^2.112.4"
+    "react-native-screens": "^4.27.0"
   },
   "devDependencies": {
     "@types/jest": "^29.5.14",

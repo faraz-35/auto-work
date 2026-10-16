@@ -40,7 +40,7 @@ export function LedgerScreen() {
       <ScrollView style={s.screen} contentContainerStyle={s.content}>
         <SectionTitle>Add a purchase</SectionTitle>
         <Card style={{ gap: 12 }}>
-          <Field label={`What (bought by ${me?.name ?? 'you'})`} value={item} onChangeText={setItem} placeholder="Groceries" />
+          <Field label="What did you buy" value={item} onChangeText={setItem} placeholder="Groceries" />
           <Field label="How much (Rs)" value={amount} onChangeText={setAmount} keyboardType="number-pad" placeholder="3250" />
           <Btn title="Add to ledger" onPress={add} loading={busy} disabled={!item.trim() || !(Number(amount) > 0)} />
         </Card>

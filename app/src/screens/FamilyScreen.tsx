@@ -16,6 +16,7 @@ export function FamilyScreen() {
   const { household, members, me, actions } = app;
   const [checks, setChecks] = useState<Checks | null>(null);
   const [snooze, setSnooze] = useState('');
+  const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
 
   const runChecks = useCallback(() => {
@@ -36,6 +37,9 @@ export function FamilyScreen() {
   useEffect(() => {
     if (household) setSnooze(String(household.snooze_minutes));
   }, [household?.snooze_minutes]);
+  useEffect(() => {
+    if (me) setName(me.name);
+  }, [me?.id]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   const guard = async (fn: () => Promise<void>) => {
     setBusy(true);
@@ -43,6 +47,13 @@ export function FamilyScreen() {
       Alert.alert('Something broke', e instanceof Error ? e.message : String(e));
     } finally { setBusy(false); }
   };
+
+  const saveName = () =>
+    guard(async () => {
+      const trimmed = name.trim();
+      if (trimmed.length < 1 || trimmed.length > 30) throw new Error('Name must be 1–30 letters.');
+      await actions.renameMe(trimmed);
+    });
 
   const saveSnooze = () =>
     guard(async () => {
@@ -61,19 +72,15 @@ export function FamilyScreen() {
       );
     });
 
-  const leave = () =>
-    Alert.alert(
-      'Leave the household?',
-      'You stop getting chores and this phone goes back to the name screen. Everyone else keeps everything.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Leave', style: 'destructive', onPress: () => void guard(actions.leave) },
-      ]
-    );
-
   return (
     <Screen>
     <ScrollView style={s.screen} contentContainerStyle={s.content}>
+      <SectionTitle>Your name</SectionTitle>
+      <Card style={{ gap: 14 }}>
+        <Field label="What the family calls you" value={name} onChangeText={setName} placeholder={me?.name ?? 'Me'} />
+        <Btn title="Save name" onPress={saveName} loading={busy} />
+      </Card>
+
       <SectionTitle>Members</SectionTitle>
       <Card style={{ gap: 14 }}>
         {members.map((m) => (
@@ -85,7 +92,7 @@ export function FamilyScreen() {
           </Row>
         ))}
         <Text style={s.meta}>
-          A new phone just types their name on first open — that's the whole joining process.
+          A new phone just installs the app and opens it — it joins by itself.
         </Text>
       </Card>
 
@@ -129,12 +136,7 @@ export function FamilyScreen() {
         <Btn title="Ring a test alarm in 1 minute" onPress={testAlarm} loading={busy} />
       </Card>
 
-      <SectionTitle>Danger zone</SectionTitle>
-      <Card>
-        <Btn title="Leave this household" kind="danger" onPress={leave} loading={busy} />
-      </Card>
-
-      <Text style={s.version}>Ghar v2.0.0 · household {household?.id?.slice(0, 8) ?? '—'}</Text>
+      <Text style={s.version}>Ghar v2.0.2 · household {household?.id?.slice(0, 8) ?? '—'}</Text>
     </ScrollView>
     </Screen>
   );

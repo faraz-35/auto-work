@@ -10,7 +10,7 @@ import { alarmsToNativeJson, computeDesiredAlarms } from '../logic/alarms';
 import { ensureDeviceSession, db } from '../db/client';
 import * as api from '../db/api';
 
-type Phase = 'boot' | 'needName' | 'ready';
+type Phase = 'boot' | 'error' | 'ready';
 
 type Snapshot = {
   v: 2;
@@ -39,7 +39,8 @@ type AppState = {
   me: Member | null;
   refresh: () => Promise<void>;
   actions: {
-    signIn: (name: string) => Promise<void>;
+    retry: () => void;
+    renameMe: (name: string) => Promise<void>;
     startChore: (choreId: string) => Promise<void>;
     completeChore: (choreId: string, date?: string) => Promise<void>;
     skipChore: (choreId: string) => Promise<void>;
@@ -50,7 +51,6 @@ type AppState = {
     acceptSwap: (requestId: string) => Promise<void>;
     cancelSwap: (requestId: string) => Promise<void>;
     saveSettings: (patch: Partial<Pick<Household, 'snooze_minutes'>>) => Promise<void>;
-    leave: () => Promise<void>;
     loadPurchases: () => Promise<void>;
     addPurchase: (item: string, amount: number) => Promise<void>;
     deletePurchase: (purchaseId: string) => Promise<void>;
@@ -99,9 +99,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [profile, persistSnapshot]);
 
-  // bootstrap: cached profile + snapshot render instantly; the session and a
-  // fresh fetch settle in the background (stale-while-revalidate — never
-  // block the today screen on the network)
+  // bootstrap: cached profile + snapshot render instantly; otherwise the
+  // device signs itself in and joins the household invisibly (default name,
+  // rename later in Family). The user never sees a setup screen.
   useEffect(() => {
     (async () => {
       try {
@@ -109,12 +109,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           AsyncStorage.getItem(PROFILE_KEY),
           AsyncStorage.getItem(SNAPSHOT_KEY),
         ]);
-        if (!rawProfile) {
-          setPhase('needName');
-          return;
+        await ensureDeviceSession();
+        let p: Profile;
+        if (rawProfile) {
+          p = JSON.parse(rawProfile);
+        } else {
+          p = await api.ensureHousehold('Me');
+          await AsyncStorage.setItem(PROFILE_KEY, JSON.stringify(p));
         }
-        const p: Profile = JSON.parse(rawProfile);
-        setProfile(p);
         if (rawSnapshot) {
           const snap: Snapshot = JSON.parse(rawSnapshot);
           if (snap.v === 2) {
@@ -127,13 +129,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             setStale(true);
           }
         }
+        setProfile(p);
         setPhase('ready');
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
-        setPhase('needName');
+        setPhase('error');
       }
     })();
-  }, []);
+  }, [reloadKey]);
 
   useEffect(() => {
     if (phase === 'ready') {
@@ -210,12 +213,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [refresh]);
 
   const actions: AppState['actions'] = useMemo(() => ({
-    async signIn(name) {
-      await ensureDeviceSession();
-      const p = await api.ensureHousehold(name);
-      await AsyncStorage.setItem(PROFILE_KEY, JSON.stringify(p));
-      setProfile(p);
-      setPhase('ready');
+    retry() {
+      setError(null);
+      setPhase('boot');
+      setReloadKey((k) => k + 1);
+    },
+
+    async renameMe(name) {
+      if (!profile || !me) return;
+      const trimmed = name.trim();
+      if (trimmed.length < 1 || trimmed.length > 30) return;
+      writeBehind(
+        () => setMembers((prev) => prev.map((m) => (m.id === me.id ? { ...m, name: trimmed } : m))),
+        async () => { await api.renameMember(me.id, trimmed); }
+      );
     },
 
     startChore(choreId) {
@@ -341,23 +352,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (patch.snooze_minutes != null) await MotorAlarms.setSnoozeMinutes(patch.snooze_minutes);
       await api.saveHouseholdSettings(profile.householdId, patch);
       await refresh();
-    },
-
-    async leave() {
-      if (!profile) return;
-      await api.leaveHousehold(profile.memberId);
-      await AsyncStorage.removeItem(PROFILE_KEY);
-      await AsyncStorage.removeItem(SNAPSHOT_KEY);
-      await MotorAlarms.syncAlarms('{}');
-      setProfile(null);
-      setHousehold(null);
-      setMembers([]);
-      setChores([]);
-      setEvents([]);
-      setOverrides({});
-      setSwaps([]);
-      setPurchases(null);
-      setPhase('needName');
     },
 
     async loadPurchases() {

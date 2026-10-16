@@ -144,8 +144,8 @@ export async function saveHouseholdSettings(
   if (error) throw error;
 }
 
-export async function leaveHousehold(memberId: string): Promise<void> {
-  const { error } = await db.from('members').update({ active: false }).eq('id', memberId);
+export async function renameMember(memberId: string, name: string): Promise<void> {
+  const { error } = await db.from('members').update({ name }).eq('id', memberId);
   if (error) throw error;
 }
 

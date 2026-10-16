@@ -5,6 +5,7 @@ import { Screen } from '../components/Screen';
 import { Btn, Card, Pill, Row, SectionTitle } from '../components/ui';
 import { ChoreModal } from '../components/ChoreModal';
 import { useApp } from '../state/AppContext';
+import { formatDay, scheduleLabel } from '../logic/human';
 import { addDays } from '../logic/rotation';
 import type { Chore } from '../types';
 
@@ -25,11 +26,12 @@ export function ChoresScreen() {
     [chores]
   );
 
-  const scheduleLabel = (c: Chore) => {
-    if (c.repeat_days === 1) return `daily · ${c.time_of_day.slice(0, 5)}`;
-    if (c.repeat_days != null) return `every ${c.repeat_days} days · ${c.time_of_day.slice(0, 5)}`;
-    if (c.repeat_monthly_day != null) return `monthly on the ${c.repeat_monthly_day} · ${c.time_of_day.slice(0, 5)}`;
-    return `by ${c.due_at!.slice(0, 10)} ${c.due_at!.slice(11, 16)}`;
+  const scheduleLine = (c: Chore) => {
+    const parts = [scheduleLabel(c)];
+    if (c.rotate) parts.push('rotating');
+    else if (c.assignee_member_id) parts.push(memberName(c.assignee_member_id));
+    if (c.amount != null) parts.push(`Rs ${c.amount.toLocaleString('en-PK')}`);
+    return parts.join(' · ');
   };
 
   const archive = (c: Chore) =>
@@ -64,14 +66,10 @@ export function ChoresScreen() {
                 {c.rotate ? <Pill text="rotating" tone="dim" /> : null}
               </Row>
             </Row>
-            <Text style={s.meta}>
-              {scheduleLabel(c)}
-              {!c.rotate && c.assignee_member_id ? ` · ${memberName(c.assignee_member_id)}` : ''}
-              {c.amount != null ? ` · Rs ${c.amount.toLocaleString('en-PK')}` : ''}
-            </Text>
+            <Text style={s.meta}>{scheduleLine(c)}</Text>
             <Row>
               <Btn title="Edit" kind="ghost" onPress={() => setEditing(c)} />
-              <Btn title="Stop it" kind="ghost" onPress={() => archive(c)} />
+              <Btn title="Stop" kind="ghost" onPress={() => archive(c)} />
             </Row>
           </Card>
         ))}
@@ -89,12 +87,10 @@ export function ChoresScreen() {
                     {c.amount != null && <Pill text={`Rs ${c.amount.toLocaleString('en-PK')}`} tone="dim" />}
                   </Row>
                 </Row>
-                <Text style={s.meta}>
-                  {scheduleLabel(c)} · {c.rotate ? 'rotating' : memberName(c.assignee_member_id)}
-                </Text>
+                <Text style={s.meta}>{scheduleLine(c)}</Text>
                 <Row>
                   <Btn title="Edit" kind="ghost" onPress={() => setEditing(c)} />
-                  <Btn title="Cancel it" kind="ghost" onPress={() => archive(c)} />
+                  <Btn title="Cancel" kind="ghost" onPress={() => archive(c)} />
                 </Row>
               </Card>
             ))}
@@ -111,7 +107,7 @@ export function ChoresScreen() {
                 {' '}{e.status === 'skipped' ? 'skipped' : e.status === 'started' ? 'started' : 'did'}{' '}
                 {e.chore!.title}
               </Text>
-              <Text style={s.date}>{e.on_date.slice(5)}</Text>
+              <Text style={s.date}>{formatDay(e.on_date)}</Text>
             </Row>
           ))}
         </Card>

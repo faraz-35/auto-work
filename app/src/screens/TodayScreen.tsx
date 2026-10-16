@@ -7,6 +7,7 @@ import { Btn, Card, Pill, Row, SectionTitle } from '../components/ui';
 import { ChoreModal } from '../components/ChoreModal';
 import { useApp } from '../state/AppContext';
 import { formatRemaining } from '../logic/alarms';
+import { formatDay, formatShortDate, formatTimeOf, scheduleLabel } from '../logic/human';
 import { assigneeFor, eventFor, occursOn } from '../logic/rotation';
 import type { Chore } from '../types';
 
@@ -40,9 +41,13 @@ export function TodayScreen() {
     }),
     [occurrences, members, overrides, me, events, today]
   );
-  // open close-chores (spawned by a start) are "happening now" countdowns
+  // open close-chores (spawned by a start) are "happening now" countdowns —
+  // only today's; spawns left over from past days are stale and ignored
   const runningClose = useMemo(
-    () => chores.filter((c) => c.active && c.spawned_from != null && !eventFor(events, c.id, today)),
+    () => chores.filter((c) =>
+      c.active && c.spawned_from != null && c.due_at != null
+      && localDateOfSafe(c.due_at) === today
+      && !eventFor(events, c.id, today)),
     [chores, events, today]
   );
 
@@ -83,7 +88,7 @@ export function TodayScreen() {
     <Screen>
       <ScrollView style={s.screen} contentContainerStyle={s.content}>
         <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
-          <SectionTitle>Today · {today}</SectionTitle>
+          <SectionTitle>Today · {formatShortDate(today)}</SectionTitle>
           <Btn title="+ Add chore" kind="ghost" onPress={() => setAddOpen(true)} />
         </Row>
 
@@ -91,7 +96,9 @@ export function TodayScreen() {
         {error && !stale && <Text style={s.stale}>{error}</Text>}
 
         <Card style={{ alignItems: 'center', paddingVertical: 24 }}>
-          <Text style={s.heroLabel}>{onMe === 0 ? 'ALL CLEAR' : onMe === 1 ? '1 THING ON YOU' : `${onMe} THINGS ON YOU`}</Text>
+          <Text style={[s.heroState, { color: onMe === 0 ? C.good : C.text }]}>
+            {onMe === 0 ? 'All clear' : onMe === 1 ? 'One thing on you' : `${onMe} things on you`}
+          </Text>
           <Text style={s.heroMeta}>
             {doneToday > 0 ? `${doneToday} finished today · ` : ''}
             {othersOpen.length > 0 ? `${othersOpen.length} on the rest of the house` : 'nothing else pending'}
@@ -112,12 +119,12 @@ export function TodayScreen() {
                 )}
               </Row>
               <Text style={s.meta}>
-                started by {memberName(c.assignee_member_id)}
-                {remaining != null && remaining < 0 ? ' · overdue — close it now' : ' until the alarm rings'}
+                {memberName(c.assignee_member_id)} has to close it
+                {remaining != null && remaining < 0 ? ' · overdue' : ` · alarm at ${c.due_at ? formatTimeOf(c.due_at) : '—'}`}
               </Text>
               <Btn
                 title="I closed it"
-                onPress={() => guard(() => actions.completeChore(c.id, c.due_at ? localDateOfSafe(c.due_at) : today))}
+                onPress={() => guard(() => actions.completeChore(c.id, today))}
               />
             </Card>
           );
@@ -138,11 +145,11 @@ export function TodayScreen() {
               {c.note && <Text style={s.meta}>{c.note}</Text>}
               <Row style={{ justifyContent: 'space-between' }}>
                 <Text style={s.meta}>
-                  {c.amount != null ? `Rs ${c.amount.toLocaleString('en-PK')} · ` : ''}
-                  {c.due_at != null
-                    ? `by ${c.due_at.slice(11, 16)}`
-                    : `every ${c.repeat_days ?? '?'}d at ${c.time_of_day.slice(0, 5)}`}
+                  {scheduleLabel(c)}
                 </Text>
+                {c.amount != null && (
+                  <Text style={s.amount}>{`Rs ${c.amount.toLocaleString('en-PK')}`}</Text>
+                )}
               </Row>
               {isTurn ? (
                 <Btn title={`Start — ${c.duration_minutes} min run`} onPress={() => guard(() => actions.startChore(c.id))} />
@@ -263,10 +270,11 @@ function SwapModal({
 const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: C.bg },
   content: { padding: 20, gap: 16, paddingBottom: 40 },
-  heroLabel: { color: C.dim, fontSize: 12, fontWeight: '700', letterSpacing: 1.5 },
-  heroMeta: { color: C.text, fontSize: 15, textAlign: 'center', marginTop: 6 },
+  heroState: { fontSize: 22, fontWeight: '700', letterSpacing: -0.3 },
+  heroMeta: { color: C.dim, fontSize: 14, textAlign: 'center', marginTop: 6 },
   cardTitle: { color: C.text, fontSize: 16, fontWeight: '600', flex: 1 },
   countdown: { fontSize: 26, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  amount: { color: C.text, fontSize: 14, fontVariant: ['tabular-nums'] },
   meta: { color: C.dim, fontSize: 13 },
   stale: { color: C.warn, fontSize: 13 },
   or: { color: C.dim, fontSize: 13, textAlign: 'center' },

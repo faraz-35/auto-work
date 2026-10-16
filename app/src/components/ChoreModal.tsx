@@ -6,7 +6,14 @@ import { Btn, Card, Field, Pill, Row } from './ui';
 import { ChoreDraft } from '../db/api';
 import type { Chore } from '../types';
 import { useApp } from '../state/AppContext';
-import { addDays } from '../logic/rotation';
+import { addDays, localDate } from '../logic/rotation';
+import { formatDay } from '../logic/human';
+
+const karachiToday = () => localDate();
+const todayStr = () => karachiToday();
+const tomorrowStr = () => addDays(karachiToday(), 1);
+const humanDay = (d: string) => (dateOk(d) ? formatDay(d) : d);
+function dateOk(d: string) { return /^\d{4}-\d{2}-\d{2}$/.test(d); }
 
 type Mode = 'once' | 'every' | 'monthly';
 
@@ -68,7 +75,6 @@ export function ChoreModal({ visible, onClose, editing = null }: Props) {
   }, [visible, editing]);
 
   const timeOk = (t: string) => /^\d{1,2}:\d{2}$/.test(t);
-  const dateOk = (d: string) => /^\d{4}-\d{2}-\d{2}$/.test(d);
 
   const submit = async () => {
     try {
@@ -161,14 +167,23 @@ export function ChoreModal({ visible, onClose, editing = null }: Props) {
               <PickerChip active={mode === 'monthly'} label="Monthly" onPress={() => setMode('monthly')} />
             </Row>
             {mode === 'once' && (
-              <Row>
-                <View style={{ flex: 1 }}>
-                  <Field label="Date" value={onceDate} onChangeText={setOnceDate} placeholder="2026-10-17" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Field label="Time" value={onceTime} onChangeText={setOnceTime} placeholder="18:00" />
-                </View>
-              </Row>
+              <>
+                <Row style={{ flexWrap: 'wrap' }}>
+                  <PickerChip active={onceDate === todayStr()} label="Today" onPress={() => setOnceDate(todayStr())} />
+                  <PickerChip active={onceDate === tomorrowStr()} label="Tomorrow" onPress={() => setOnceDate(tomorrowStr())} />
+                  {dateOk(onceDate) && onceDate !== todayStr() && onceDate !== tomorrowStr() && (
+                    <PickerChip active label={humanDay(onceDate)} onPress={() => undefined} />
+                  )}
+                </Row>
+                <Row>
+                  <View style={{ flex: 1 }}>
+                    <Field label="Date (YYYY-MM-DD)" value={onceDate} onChangeText={setOnceDate} placeholder="2026-10-17" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Field label="Time" value={onceTime} onChangeText={setOnceTime} placeholder="18:00" />
+                  </View>
+                </Row>
+              </>
             )}
             {mode === 'every' && (
               <Row>

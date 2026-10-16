@@ -244,3 +244,33 @@ describe('ledger', () => {
     expect(formatPKR(3250.5)).toBe('Rs 3,251');
   });
 });
+
+describe('human dates', () => {
+  const TODAY = '2026-10-16';  // test-local today
+  const { formatDay, formatTime12, formatTimeOf, scheduleLabel } = require('../human');
+
+  test('formatDay: today, tomorrow, yesterday, else short', () => {
+    expect(formatDay('2026-10-16', TODAY)).toBe('Today');
+    expect(formatDay('2026-10-17', TODAY)).toBe('Tomorrow');
+    expect(formatDay('2026-10-15', TODAY)).toBe('Yesterday');
+    expect(formatDay('2026-10-18', TODAY)).toBe('Sun 18 Oct');
+    expect(formatDay('2027-01-05', TODAY)).toMatch(/2027$/);
+  });
+
+  test('formatTime12', () => {
+    expect(formatTime12('00:30:00')).toBe('12:30 AM');
+    expect(formatTime12('18:00')).toBe('6:00 PM');
+    expect(formatTime12('12:05:00')).toBe('12:05 PM');
+  });
+
+  test('scheduleLabel for each schedule kind', () => {
+    expect(scheduleLabel({ due_at: '2030-06-18T13:00:00+05:00', repeat_days: null, repeat_monthly_day: null, time_of_day: '' }))
+      .toBe('by Tue 18 Jun 2030, 1:00 PM');
+    expect(scheduleLabel({ due_at: null, repeat_days: 1, repeat_monthly_day: null, time_of_day: '18:00:00' }))
+      .toBe('daily at 6:00 PM');
+    expect(scheduleLabel({ due_at: null, repeat_days: 3, repeat_monthly_day: null, time_of_day: '07:15:00' }))
+      .toBe('every 3 days at 7:15 AM');
+    expect(scheduleLabel({ due_at: null, repeat_days: null, repeat_monthly_day: 25, time_of_day: '09:00:00' }))
+      .toBe('monthly on the 25 at 9:00 AM');
+  });
+});
