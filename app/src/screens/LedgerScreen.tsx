@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View, Alert } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { C } from '../theme';
 import { Screen } from '../components/Screen';
+import { ActionSheet } from '../components/ActionSheet';
 import { Btn, Card, Field, Overflow, Row, SectionTitle } from '../components/ui';
 import { useApp } from '../state/AppContext';
 import { formatPKR, groupByMonth, memberTotals, monthLabel } from '../logic/ledger';
+import type { Purchase } from '../types';
 
 /** The home-invoice port: whatever anyone buys goes in here. Insert, read,
  *  and a careful two-tap delete — no editing, by design. */
@@ -13,6 +15,7 @@ export function LedgerScreen() {
   const [item, setItem] = useState('');
   const [amount, setAmount] = useState('');
   const [busy, setBusy] = useState(false);
+  const [deleting, setDeleting] = useState<Purchase | null>(null);
 
   useEffect(() => { void actions.loadPurchases(); }, []);
 
@@ -63,13 +66,7 @@ export function LedgerScreen() {
                       </Text>
                     </View>
                     <Text style={s.amount}>{formatPKR(p.amount)}</Text>
-                    <Overflow
-                      label={`Options for ${p.item}`}
-                      onPress={() => Alert.alert('Delete this entry?', `${p.item} · ${formatPKR(p.amount)}`, [
-                        { text: 'Keep', style: 'cancel' },
-                        { text: 'Delete', style: 'destructive', onPress: () => actions.deletePurchase(p.id) },
-                      ])}
-                    />
+                    <Overflow label={`Options for ${p.item}`} onPress={() => setDeleting(p)} />
                   </Row>
                 ))}
               </Card>
@@ -88,6 +85,19 @@ export function LedgerScreen() {
         {purchases != null && purchases.length === 0 && (
           <Text style={s.meta}>Nothing bought yet — add the first purchase above.</Text>
         )}
+
+        <ActionSheet
+          visible={deleting != null}
+          onClose={() => setDeleting(null)}
+          title="Delete this entry?"
+          subtitle={deleting ? `${deleting.item} · ${formatPKR(deleting.amount)}` : undefined}
+          cancelLabel="Keep"
+          actions={[{
+            label: 'Delete',
+            destructive: true,
+            onPress: () => { if (deleting) actions.deletePurchase(deleting.id); },
+          }]}
+        />
       </ScrollView>
     </Screen>
   );

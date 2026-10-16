@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text } from 'react-native';
 import { C } from '../theme';
 import { Screen } from '../components/Screen';
+import { ActionSheet } from '../components/ActionSheet';
 import { Card, Fab, Overflow, Pill, Row, SectionTitle } from '../components/ui';
 import { ChoreModal } from '../components/ChoreModal';
 import { useApp } from '../state/AppContext';
@@ -13,6 +14,8 @@ export function ChoresScreen() {
   const { chores, events, memberName, actions } = useApp();
   const [editing, setEditing] = useState<Chore | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  const [menuChore, setMenuChore] = useState<Chore | null>(null);
+  const [stopChore, setStopChore] = useState<Chore | null>(null);
 
   const recurring = useMemo(
     () => chores.filter((c) => c.active && (c.repeat_days != null || c.repeat_monthly_day != null) && c.spawned_from == null),
@@ -31,19 +34,6 @@ export function ChoresScreen() {
     else if (c.assignee_member_id) parts.push(memberName(c.assignee_member_id));
     return parts.join(' · ');
   };
-
-  const confirmStop = (c: Chore) =>
-    Alert.alert(`Stop "${c.title}"?`, 'It disappears from everyone\'s today list. History stays.', [
-      { text: 'Keep it', style: 'cancel' },
-      { text: 'Stop', style: 'destructive', onPress: () => actions.archiveChore(c.id).catch(showErr) },
-    ]);
-
-  const choreMenu = (c: Chore) =>
-    Alert.alert(c.title, scheduleLine(c), [
-      { text: 'Edit', onPress: () => setEditing(c) },
-      { text: c.due_at != null ? 'Cancel chore' : 'Stop chore', style: 'destructive', onPress: () => confirmStop(c) },
-      { text: 'Close', style: 'cancel' },
-    ]);
 
   const activity = useMemo(() => {
     const since = addDays(new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Karachi' }).format(new Date()), -14);
@@ -67,7 +57,7 @@ export function ChoresScreen() {
             <Row style={{ justifyContent: 'space-between' }}>
               <Text style={s.title}>{c.title}</Text>
               {c.strict && <Pill text="alarm" tone="warn" />}
-              <Overflow label={`Options for ${c.title}`} onPress={() => choreMenu(c)} />
+              <Overflow label={`Options for ${c.title}`} onPress={() => setMenuChore(c)} />
             </Row>
             <Text style={s.meta}>{scheduleLine(c)}</Text>
           </Card>
@@ -84,7 +74,7 @@ export function ChoresScreen() {
                   <Row style={{ gap: 6 }}>
                     {c.strict && <Pill text="alarm" tone="warn" />}
                     {c.amount != null && <Pill text={`Rs ${c.amount.toLocaleString('en-PK')}`} tone="dim" />}
-                    <Overflow label={`Options for ${c.title}`} onPress={() => choreMenu(c)} />
+                    <Overflow label={`Options for ${c.title}`} onPress={() => setMenuChore(c)} />
                   </Row>
                 </Row>
                 <Text style={s.meta}>{scheduleLine(c)}</Text>
@@ -110,6 +100,32 @@ export function ChoresScreen() {
 
         <ChoreModal visible={editing != null} editing={editing} onClose={() => setEditing(null)} />
         <ChoreModal visible={addOpen} onClose={() => setAddOpen(false)} />
+        <ActionSheet
+          visible={menuChore != null}
+          onClose={() => setMenuChore(null)}
+          title={menuChore?.title ?? ''}
+          subtitle={menuChore ? scheduleLine(menuChore) : undefined}
+          actions={[
+            { label: 'Edit', onPress: () => setEditing(menuChore) },
+            {
+              label: menuChore?.due_at != null ? 'Cancel chore' : 'Stop chore',
+              destructive: true,
+              onPress: () => setStopChore(menuChore),
+            },
+          ]}
+        />
+        <ActionSheet
+          visible={stopChore != null}
+          onClose={() => setStopChore(null)}
+          title={`Stop "${stopChore?.title ?? ''}"?`}
+          subtitle="It disappears from everyone's today list. History stays."
+          cancelLabel="Keep"
+          actions={[{
+            label: 'Stop',
+            destructive: true,
+            onPress: () => { if (stopChore) actions.archiveChore(stopChore.id).catch(showErr); },
+          }]}
+        />
       </ScrollView>
       <Fab icon="add" label="Add chore" onPress={() => setAddOpen(true)} />
     </Screen>
