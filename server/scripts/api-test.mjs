@@ -1,6 +1,6 @@
 // End-to-end backend test against the live Supabase project, over the same
-// surfaces the app uses: anonymous auth -> RPCs -> REST reads/writes under RLS.
-// Creates a throwaway household per run (code is random; rows are harmless).
+// surfaces the app uses: device-pool auth -> RPCs -> REST reads/writes under
+// RLS. Wipes throwaway households and releases pool claims first (dev DB only).
 import { readFile } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -42,6 +42,9 @@ const rpc = async (fn, token, params) => {
   return { ...r, row: Array.isArray(r.json) ? r.json[0] ?? null : r.json };
 };
 
+/** Scalar-returning RPCs arrive as bare JSON values (or array-wrapped rows). */
+const scalarOf = (r, key) => (Array.isArray(r.json) ? r.json[0]?.[key] : r.json);
+
 async function anonDevice() {
   const claim = await sb('rpc/claim_device_account', { method: 'POST', token: null, body: {} });
   const account = Array.isArray(claim.json) ? claim.json[0] : claim.json;
@@ -56,118 +59,127 @@ async function anonDevice() {
   return access_token;
 }
 
-// Same formula as the app and as SQL rotation_assignment().
+// Karachi-day helpers mirroring app/src/logic/rotation.ts and the SQL.
 const karachiToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Karachi' }).format(new Date());
 const addDays = (ds, n) => new Date(Date.parse(ds + 'T00:00:00Z') + n * 86400000).toISOString().slice(0, 10);
-const dayNumber = (ds) => Math.floor(Date.parse(ds + 'T00:00:00Z') / 86400000);
-const rotationAssign = (ds, members) => members[dayNumber(ds) % members.length];
+const dayNumber = (ds) => Math.floor(Date.parse(ds + 'T00:00:00Z') / 86400);
+const rotAssign = (offset, ds, members) => members[((dayNumber(ds) + offset) % members.length + members.length) % members.length];
 
 // ---- fixtures: wipe throwaway households + release pool claims (dev DB only) ----
 {
-  const pgmod = await import('pg');
-  const pgc = new pgmod.default.Client({ connectionString: env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
-  await pgc.connect();
-  await pgc.query('delete from public.households');
-  await pgc.query('select public.release_device_pool()');
-  await pgc.end();
+  const { query } = await import('./mgmt.mjs');
+  await query('delete from public.households');
+  await query('select public.release_device_pool()');
 }
 
 // ---- run ----
-console.log('devices: anonymous sign-in x5');
+console.log('devices: pool claim x5');
 const tokens = [];
 for (let i = 0; i < 5; i++) tokens.push(await anonDevice());
-ok('five anonymous devices', tokens.length === 5 && tokens.every(Boolean));
+ok('five pool devices', tokens.length === 5 && tokens.every(Boolean));
 
-console.log('household: create + join x3');
+console.log('ensure_household: no-login flow');
 const names = ['Faraz', 'Ayesha', 'Bilal', 'Usman'];
-const created = await rpc('create_household', tokens[0], { p_name: names[0], p_reminder: '10:00', p_minutes: 10 });
-ok('create_household', created.status === 200 && !!created.row?.household_id, created.text);
-const H = created.row.household_id;
-
+const first = await rpc('ensure_household', tokens[0], { p_name: names[0] });
+ok('first device creates + seeds', first.status === 200 && first.row?.out_created === true && !!first.row?.out_household, first.text);
+const H = first.row.out_household;
 const joins = [];
-for (let i = 1; i <= 3; i++) joins.push(await rpc('join_household', tokens[i], { p_code: created.row.code, p_name: names[i] }));
-ok('join_household x3', joins.every((j) => j.status === 200), joins.map((j) => j.text).join(' | '));
+for (let i = 1; i <= 3; i++) joins.push(await rpc('ensure_household', tokens[i], { p_name: names[i] }));
+ok('next devices join silently', joins.every((j) => j.status === 200 && j.row?.out_household === H && j.row?.out_created === false),
+  joins.map((j) => j.text).join(' | '));
 const outsider = tokens[4];
 
 const membersRes = await sb('members', { token: tokens[1], query: { select: '*', order: 'rotation_order.asc' } });
 ok('members readable, 4, ordered by join', membersRes.status === 200 && membersRes.json.length === 4
   && membersRes.json.every((m, i) => m.rotation_order === i), membersRes.text);
 const members = membersRes.json;
+const tokenByMember = new Map(members.map((m, i) => [m.id, tokens[i]]));
 
-console.log('rotation + run lifecycle');
+console.log('chores: seed visible, create one-off bill');
+const choresRes = await sb('chores', { token: tokens[0], query: { select: '*' } });
+const motor = choresRes.json.find((ch) => ch.title === 'Turn on the motor');
+ok('motor chore seeded + visible', choresRes.status === 200 && !!motor && motor.rotate && motor.strict, choresRes.text);
+
+const billRes = await rpc('create_chore', tokens[0], {
+  p_title: 'Pay electricity', p_note: 'KE bill', p_assignee: members[1].id, p_rotate: false, p_strict: true,
+  p_due_at: `${addDays(karachiToday(), 2)}T18:00:00+05:00`, p_repeat_days: null, p_repeat_monthly_day: null,
+  p_time_of_day: null, p_duration_minutes: null, p_amount: 4500,
+});
+const billId = scalarOf(billRes, 'create_chore');
+ok('bill chore created', billRes.status === 200 && !!billId, billRes.text);
+
+console.log('motor lifecycle: start spawns close chore, complete stamps parent');
 const today = karachiToday();
-const todays = rotationAssign(today, members);
-const tokenByMember = new Map([
-  [members[0].id, tokens[0]], [members[1].id, tokens[1]],
-  [members[2].id, tokens[2]], [members[3].id, tokens[3]],
-]);
+const todays = rotAssign(0, today, members);
+const startRes = await rpc('start_chore', tokenByMember.get(todays.id), { p_chore: motor.id, p_on_date: today });
+const spawnId = scalarOf(startRes, 'start_chore');
+ok('start_chore returns spawn id', startRes.status === 200 && !!spawnId, startRes.text);
+const spawnRes = await sb('chores', { token: tokens[2], query: { select: '*', id: `eq.${spawnId}` } });
+const spawn = spawnRes.json[0];
+ok('close chore spawned strict for starter', spawnRes.status === 200 && spawn?.strict === true
+  && spawn.assignee_member_id === todays.id && spawn.spawned_from !== null, spawnRes.text);
 
-const startRes = await sb('runs', {
-  method: 'POST', token: tokenByMember.get(todays.id),
-  query: { on_conflict: 'household_id,on_date' },
-  body: [{ household_id: H, on_date: today, assigned_member_id: todays.id, status: 'started', started_by: todays.id }],
+const doneRes = await rpc('complete_chore', tokenByMember.get(todays.id), { p_chore: spawn.id, p_on_date: today });
+ok('close chore completed', doneRes.status >= 200 && doneRes.status < 300, doneRes.text);
+const evts = await sb('chore_events', { token: tokens[0], query: { select: '*', chore_id: `eq.${motor.id}`, on_date: `eq.${today}` } });
+ok('parent occurrence stamped done', evts.json[0]?.status === 'done' && evts.json[0]?.done_by === todays.id, evts.text);
+
+console.log('swap flow (two-way, per-chore)');
+const plantsRes = await rpc('create_chore', tokens[0], {
+  p_title: 'Water the plants', p_note: null, p_assignee: null, p_rotate: true, p_strict: false,
+  p_due_at: null, p_repeat_days: 1, p_repeat_monthly_day: null, p_time_of_day: '18:00',
+  p_duration_minutes: null, p_amount: null,
 });
-ok('run started by assigned member', startRes.status === 201 && startRes.json[0].status === 'started', startRes.text);
+const plants = scalarOf(plantsRes, 'create_chore');
+const plantsChore = (await sb('chores', { token: tokens[0], query: { select: '*', id: `eq.${plants}` } })).json[0];
+ok('second rotating chore offset 1', plantsChore?.rotation_offset === 1, JSON.stringify(plantsChore));
 
-const stopRes = await sb('runs', {
-  method: 'PATCH', token: tokenByMember.get(todays.id),
-  query: { household_id: `eq.${H}`, on_date: `eq.${today}` },
-  body: { status: 'completed', stopped_by: todays.id },
-});
-ok('run stopped -> completed', stopRes.status === 200 && stopRes.json[0].status === 'completed', stopRes.text);
-
-// someone else covers a started-but-unfinished run (the "refer to somebody" path)
-const coverDay = addDays(today, 1);
-let coverAssigned = rotationAssign(coverDay, members);
-const takeover = await sb('runs', {
-  method: 'POST', token: tokenByMember.get(coverAssigned.id) === tokens[0] ? tokens[1] : tokens[0],
-  query: { on_conflict: 'household_id,on_date' },
-  body: [{ household_id: H, on_date: coverDay, assigned_member_id: coverAssigned.id, status: 'completed', started_by: members.find((m) => (tokenByMember.get(m.id) === (tokenByMember.get(coverAssigned.id) === tokens[0] ? tokens[1] : tokens[0]))).id, stopped_by: members.find((m) => (tokenByMember.get(m.id) === (tokenByMember.get(coverAssigned.id) === tokens[0] ? tokens[1] : tokens[0]))).id }],
-});
-ok('other member can cover a run', takeover.status === 201 && takeover.json[0].started_by !== takeover.json[0].assigned_member_id, takeover.text);
-
-console.log('swap flow (two-way)');
-const swapDay = addDays(today, 2);
-const swapper = rotationAssign(swapDay, members);
-const accepter = members.find((m) => m.id !== swapper.id && m.active);
+let swapDay = null;
+for (let i = 1; i <= 10 && !swapDay; i++) {
+  const d = addDays(today, i);
+  if (rotAssign(1, d, members).id === members[1].id) swapDay = d;
+}
 const reqRes = await sb('swap_requests', {
-  method: 'POST', token: tokenByMember.get(swapper.id),
-  body: [{ household_id: H, on_date: swapDay, from_member_id: swapper.id, to_member_id: null, status: 'pending' }],
+  method: 'POST', token: tokenByMember.get(members[1].id),
+  body: [{ household_id: H, chore_id: plants, on_date: swapDay, from_member_id: members[1].id, status: 'pending' }],
 });
-ok('swap request created', reqRes.status === 201, reqRes.text);
-
-const accRes = await rpc('accept_swap', tokenByMember.get(accepter.id), { p_request_id: reqRes.json[0].id });
-ok('swap accepted with payback date', accRes.status === 200 && !!accRes.row?.payback_date, accRes.text);
-const { swap_date, covered_by, payback_date } = accRes.row;
-
-const assigns = await sb('assignments', { token: tokens[0], query: { select: '*' } });
+ok('swap request created via REST', reqRes.status === 201, reqRes.text);
+const accRes = await rpc('accept_swap', tokenByMember.get(members[2].id), { p_request_id: reqRes.json[0].id });
+ok('swap accepted with payback', accRes.status === 200 && !!accRes.row?.out_payback_date, accRes.text);
+const assigns = await sb('chore_assignments', { token: tokens[0], query: { select: '*', chore_id: `eq.${plants}` } });
 const byDate = Object.fromEntries(assigns.json.map((a) => [a.on_date, a.member_id]));
-ok('swap day now assigned to accepter', byDate[swap_date] === accepter.id);
-ok('payback day assigned to requester', byDate[payback_date] === swapper.id);
-ok('payback is accepter own upcoming date', rotationAssign(payback_date, members) === accepter.id || byDate[payback_date] === swapper.id);
-
-const dupAccept = await rpc('accept_swap', tokenByMember.get(accepter.id), { p_request_id: reqRes.json[0].id });
+ok('cover day reassigned to accepter', byDate[swapDay] === members[2].id, JSON.stringify(byDate));
+ok('payback day assigned to requester', byDate[accRes.row.out_payback_date] === members[1].id);
+const dupAccept = await rpc('accept_swap', tokenByMember.get(members[2].id), { p_request_id: reqRes.json[0].id });
 ok('double-accept rejected', dupAccept.status >= 400, dupAccept.text);
 
-const cancelRes = await rpc('cancel_swap', tokenByMember.get(swapper.id), { p_request_id: reqRes.json[0].id });
-ok('cancel of resolved request rejected', cancelRes.status >= 400, cancelRes.text);
+console.log('ledger: purchases');
+const postRes = await sb('purchases', {
+  method: 'POST', token: tokenByMember.get(members[3].id),
+  body: [{ household_id: H, member_id: members[3].id, item: 'Groceries', amount: 3250.5 }],
+});
+ok('purchase logged', postRes.status === 201 && postRes.json[0].amount == 3250.5, postRes.text);
+const delRes = await sb('purchases', { method: 'DELETE', token: tokens[0], query: { id: `eq.${postRes.json[0].id}` } });
+ok('any member can delete a purchase', delRes.status === 204, delRes.text);
 
-console.log('settings + realtime publication rows');
-const timeRes = await sb('households', { method: 'PATCH', token: tokens[2], query: { id: `eq.${H}` }, body: { reminder_time: '09:30', run_minutes: 15 } });
-ok('settings updatable by any member', timeRes.status === 200 && timeRes.json[0].reminder_time === '09:30:00', timeRes.text);
+console.log('settings');
+const setRes = await sb('households', { method: 'PATCH', token: tokens[2], query: { id: `eq.${H}` }, body: { snooze_minutes: 7 } });
+ok('snooze updatable by any member', setRes.status === 200 && setRes.json[0].snooze_minutes === 7, setRes.text);
+await sb('households', { method: 'PATCH', token: tokens[0], query: { id: `eq.${H}` }, body: { snooze_minutes: 5 } });
 
-console.log('RLS isolation');
-const outHouseholds = await sb('households', { token: outsider, query: { select: '*' } });
-ok('outsider sees no households', outHouseholds.status === 200 && outHouseholds.json.length === 0);
+console.log('RLS isolation + anon ping');
+const outChores = await sb('chores', { token: outsider, query: { select: '*' } });
+ok('outsider sees no chores', outChores.status === 200 && outChores.json.length === 0);
 const outMembers = await sb('members', { token: outsider, query: { select: '*' } });
 ok('outsider sees no members', outMembers.status === 200 && outMembers.json.length === 0);
-const outRuns = await sb('runs', { method: 'POST', token: outsider, body: [{ household_id: H, on_date: addDays(today, 3), status: 'scheduled' }] });
-ok('outsider cannot write runs', outRuns.status >= 400);
-const outJoin = await rpc('join_household', outsider, { p_code: 'XXXXXX', p_name: 'Evil' });
-ok('bogus join code rejected', outJoin.status >= 400);
-
-// restore settings to defaults for the real family
-await sb('households', { method: 'PATCH', token: tokens[0], query: { id: `eq.${H}` }, body: { reminder_time: '10:00', run_minutes: 10 } });
+const outWrite = await sb('chores', { method: 'POST', token: outsider,
+  body: [{ household_id: H, title: 'Evil', rotate: false, assignee_member_id: members[0].id, due_at: '2027-01-01T00:00:00Z' }] });
+ok('outsider cannot write chores', outWrite.status >= 400);
+const outPurchase = await sb('purchases', { method: 'POST', token: outsider,
+  body: [{ household_id: H, member_id: members[0].id, item: 'Evil', amount: 1 }] });
+ok('outsider cannot write purchases', outPurchase.status >= 400);
+const anonPing = await sb('rpc/ping', { method: 'POST', token: null, body: {} });
+ok('ping() reachable anonymously (keep-alive target)', anonPing.status === 200 && !!anonPing.json, anonPing.text);
 
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

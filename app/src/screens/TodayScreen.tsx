@@ -1,190 +1,250 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { C } from '../theme';
 import { Screen } from '../components/Screen';
 import { Btn, Card, Pill, Row, SectionTitle } from '../components/ui';
+import { ChoreModal } from '../components/ChoreModal';
 import { useApp } from '../state/AppContext';
 import { formatRemaining } from '../logic/alarms';
-import { parseReminderTime } from '../logic/rotation';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { assigneeFor, eventFor, occursOn } from '../logic/rotation';
+import type { Chore } from '../types';
 
 export function TodayScreen() {
   const app = useApp();
-  const { household, me, assigneeToday, myTurn, todayRun, pendingSwaps, actions } = app;
-  const [busy, setBusy] = useState(false);
+  const { chores, events, members, overrides, swaps, me, today, stale, error, actions } = app;
+  const [addOpen, setAddOpen] = useState(false);
+  const [swapFor, setSwapFor] = useState<Chore | null>(null);
   const [now, setNow] = useState(Date.now());
-  const [swapModal, setSwapModal] = useState(false);
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
   }, []);
 
-  const memberName = (id: string | null) => app.members.find((m) => m.id === id)?.name ?? '—';
+  const memberName = (id: string | null) => members.find((m) => m.id === id)?.name ?? '—';
 
-  const stopAt = useMemo(() => {
-    if (todayRun?.status === 'started' && todayRun.started_at && household) {
-      return Date.parse(todayRun.started_at) + household.run_minutes * 60_000;
-    }
-    return null;
-  }, [todayRun, household]);
+  const occurrences = useMemo(
+    () => chores.filter((c) => c.active && occursOn(c, today)),
+    [chores, today]
+  );
+  const myOpen = useMemo(
+    () => occurrences.filter((c) =>
+      assigneeFor(c, today, members, overrides)?.id === me?.id && !eventFor(events, c.id, today)),
+    [occurrences, members, overrides, me, events, today]
+  );
+  const othersOpen = useMemo(
+    () => occurrences.filter((c) => {
+      const a = assigneeFor(c, today, members, overrides);
+      return a && a.id !== me?.id && !eventFor(events, c.id, today);
+    }),
+    [occurrences, members, overrides, me, events, today]
+  );
+  // open close-chores (spawned by a start) are "happening now" countdowns
+  const runningClose = useMemo(
+    () => chores.filter((c) => c.active && c.spawned_from != null && !eventFor(events, c.id, today)),
+    [chores, events, today]
+  );
 
-  const reminder = household ? parseReminderTime(household.reminder_time) : null;
-  const reminderLabel = reminder
-    ? `${String(reminder.hour).padStart(2, '0')}:${String(reminder.minute).padStart(2, '0')}`
-    : '--:--';
+  const pendingSwaps = useMemo(
+    () => swaps.filter((s) => s.status === 'pending' && s.on_date >= today && s.from_member_id !== me?.id),
+    [swaps, today, me]
+  );
 
-  const run = async (fn: () => Promise<void>) => {
-    setBusy(true);
-    try { await fn(); } catch (e) {
+  const doneToday = useMemo(
+    () => events.filter((e) => e.on_date === today && e.status !== 'started').length,
+    [events, today]
+  );
+
+  const onMe = myOpen.length + runningClose.length;
+
+  const guard = (fn: () => Promise<void> | void) => {
+    try {
+      const r = fn();
+      if (r && typeof (r as Promise<void>).catch === 'function') {
+        (r as Promise<void>).catch((e) =>
+          Alert.alert('Something broke', e instanceof Error ? e.message : String(e)));
+      }
+    } catch (e) {
       Alert.alert('Something broke', e instanceof Error ? e.message : String(e));
-    } finally { setBusy(false); }
+    }
   };
 
-  const visibleSwaps = pendingSwaps.filter((s) => s.from_member_id !== me?.id);
+  const byMember = useMemo(() => {
+    const groups = new Map<string, Chore[]>();
+    for (const c of othersOpen) {
+      const a = assigneeFor(c, today, members, overrides)!;
+      groups.set(a.name, [...(groups.get(a.name) ?? []), c]);
+    }
+    return [...groups.entries()];
+  }, [othersOpen, members, overrides, today]);
 
   return (
     <Screen>
-    <ScrollView style={s.screen} contentContainerStyle={s.content}>
-      <SectionTitle>Today · {app.today}</SectionTitle>
+      <ScrollView style={s.screen} contentContainerStyle={s.content}>
+        <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+          <SectionTitle>Today · {today}</SectionTitle>
+          <Btn title="+ Add chore" kind="ghost" onPress={() => setAddOpen(true)} />
+        </Row>
 
-      <Card style={{ alignItems: 'center', paddingVertical: 28 }}>
-        {assigneeToday ? (
-          <>
-            <Text style={s.turnLabel}>{myTurn ? 'YOUR TURN' : 'on duty'}</Text>
-            <Text style={[s.name, { color: myTurn ? C.accent : C.text }]}>
-              {assigneeToday.name}
-            </Text>
-            <Text style={s.meta}>
-              {reminderLabel} · {household?.run_minutes ?? '—'} min motor run
-            </Text>
-          </>
-        ) : (
-          <Text style={s.meta}>No active members — someone rejoin from the Family tab.</Text>
-        )}
-      </Card>
+        {stale && <Text style={s.stale}>showing saved state — refreshing…</Text>}
+        {error && !stale && <Text style={s.stale}>{error}</Text>}
 
-      {todayRun?.status === 'started' && stopAt != null && (
-        <Card>
-          <Row style={{ justifyContent: 'space-between' }}>
-            <Text style={s.runTitle}>Motor running</Text>
-            <Text style={[s.countdown, { color: stopAt > now ? C.warn : C.bad }]}>
-              {formatRemaining(stopAt - now)}
-            </Text>
-          </Row>
-          <Text style={s.meta}>
-            started by {memberName(todayRun.started_by)}
-            {stopAt <= now ? ' · overdue — stop the motor now' : ' until the alarm rings'}
-          </Text>
-          <Btn
-            title="I stopped the motor"
-            onPress={() => run(actions.stopRun)}
-            loading={busy}
-          />
-        </Card>
-      )}
-
-      {todayRun?.status === 'completed' && (
-        <Card>
-          <Row style={{ justifyContent: 'space-between' }}>
-            <Text style={s.runTitle}>Done today</Text>
-            <Pill text="completed" tone="good" />
-          </Row>
-          <Text style={s.meta}>
-            {memberName(todayRun.started_by)} ran it
-            {todayRun.started_by !== todayRun.stopped_by && todayRun.stopped_by
-              ? `, ${memberName(todayRun.stopped_by)} stopped it` : ''}
+        <Card style={{ alignItems: 'center', paddingVertical: 24 }}>
+          <Text style={s.heroLabel}>{onMe === 0 ? 'ALL CLEAR' : onMe === 1 ? '1 THING ON YOU' : `${onMe} THINGS ON YOU`}</Text>
+          <Text style={s.heroMeta}>
+            {doneToday > 0 ? `${doneToday} finished today · ` : ''}
+            {othersOpen.length > 0 ? `${othersOpen.length} on the rest of the house` : 'nothing else pending'}
           </Text>
         </Card>
-      )}
 
-      {myTurn && !todayRun && household && (
-        <Card>
-          <Text style={s.runTitle}>When you switch the motor on, tap here:</Text>
-          <Btn title="I'm starting the motor" onPress={() => run(actions.startRun)} loading={busy} />
-          <Btn title="I can't today — ask someone else" kind="ghost" onPress={() => setSwapModal(true)} />
-        </Card>
-      )}
-
-      {myTurn && todayRun?.status !== 'started' && todayRun?.status !== 'completed' && (
-        <Card>
-          <Btn title="I can't today — ask someone else" kind="ghost" onPress={() => setSwapModal(true)} />
-        </Card>
-      )}
-
-      {!myTurn && !todayRun && (
-        <Card>
-          <Text style={s.meta}>
-            {assigneeToday ? `${assigneeToday.name} handles the motor today. You're on standby.` : ''}
-          </Text>
-        </Card>
-      )}
-
-      {visibleSwaps.length > 0 && (
-        <>
-          <SectionTitle>Swap requests</SectionTitle>
-          {visibleSwaps.map((sw) => (
-            <Card key={sw.id}>
+        {runningClose.map((c) => {
+          const at = c.due_at ? Date.parse(c.due_at) : null;
+          const remaining = at != null ? at - now : null;
+          return (
+            <Card key={c.id} style={remaining != null && remaining < 0 ? { borderColor: C.bad } : undefined}>
               <Row style={{ justifyContent: 'space-between' }}>
-                <Text style={s.runTitle}>
-                  {memberName(sw.from_member_id)} can't do {sw.on_date}
-                </Text>
-                {sw.to_member_id ? (
-                  sw.to_member_id === me?.id ? <Pill text="asks you" tone="warn" /> : null
-                ) : (
-                  <Pill text="anyone" tone="dim" />
+                <Text style={s.cardTitle}>{c.title}</Text>
+                {remaining != null && (
+                  <Text style={[s.countdown, { color: remaining > 0 ? C.warn : C.bad }]}>
+                    {formatRemaining(remaining)}
+                  </Text>
                 )}
               </Row>
-              {(sw.to_member_id === null || sw.to_member_id === me?.id) && (
-                <Row>
-                  <Btn title="I'll take it" onPress={() => run(() => actions.acceptSwap(sw.id))} loading={busy} />
-                  <View style={{ flex: 1 }} />
+              <Text style={s.meta}>
+                started by {memberName(c.assignee_member_id)}
+                {remaining != null && remaining < 0 ? ' · overdue — close it now' : ' until the alarm rings'}
+              </Text>
+              <Btn
+                title="I closed it"
+                onPress={() => guard(() => actions.completeChore(c.id, c.due_at ? localDateOfSafe(c.due_at) : today))}
+              />
+            </Card>
+          );
+        })}
+
+        {myOpen.map((c) => {
+          const overdue = c.due_at != null && Date.parse(c.due_at) < now;
+          const isTurn = c.duration_minutes != null;
+          return (
+            <Card key={c.id} style={overdue ? { borderColor: C.bad } : undefined}>
+              <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text style={s.cardTitle}>{c.title}</Text>
+                <Row style={{ gap: 6 }}>
+                  {c.strict && <Pill text="alarm" tone="warn" />}
+                  {overdue && <Pill text="overdue" tone="bad" />}
                 </Row>
+              </Row>
+              {c.note && <Text style={s.meta}>{c.note}</Text>}
+              <Row style={{ justifyContent: 'space-between' }}>
+                <Text style={s.meta}>
+                  {c.amount != null ? `Rs ${c.amount.toLocaleString('en-PK')} · ` : ''}
+                  {c.due_at != null
+                    ? `by ${c.due_at.slice(11, 16)}`
+                    : `every ${c.repeat_days ?? '?'}d at ${c.time_of_day.slice(0, 5)}`}
+                </Text>
+              </Row>
+              {isTurn ? (
+                <Btn title={`Start — ${c.duration_minutes} min run`} onPress={() => guard(() => actions.startChore(c.id))} />
+              ) : (
+                <Btn title="Done" onPress={() => guard(() => actions.completeChore(c.id))} />
               )}
-              {sw.to_member_id != null && sw.to_member_id !== me?.id && (
-                <Text style={s.meta}>Waiting for {memberName(sw.to_member_id)}.</Text>
+              {(c.rotate || c.repeat_days != null) && (
+                <Btn title="I can't — ask someone else" kind="ghost" onPress={() => setSwapFor(c)} />
               )}
             </Card>
-          ))}
-        </>
-      )}
+          );
+        })}
 
-      <SwapModal
-        visible={swapModal}
-        onClose={() => setSwapModal(false)}
-        onSubmit={(to) => run(async () => { await actions.requestSwap(to); setSwapModal(false); })}
-      />
-    </ScrollView>
+        {byMember.length > 0 && (
+          <>
+            <SectionTitle>Around the house</SectionTitle>
+            {byMember.map(([name, list]) => (
+              <Card key={name} style={{ gap: 8 }}>
+                <Row style={{ justifyContent: 'space-between' }}>
+                  <Text style={s.cardTitle}>{name}</Text>
+                  <Pill text={`${list.length}`} tone="dim" />
+                </Row>
+                {list.map((c) => (
+                  <Text key={c.id} style={s.meta}>• {c.title}{c.amount != null ? ` (Rs ${c.amount.toLocaleString('en-PK')})` : ''}</Text>
+                ))}
+              </Card>
+            ))}
+          </>
+        )}
+
+        {pendingSwaps.length > 0 && (
+          <>
+            <SectionTitle>Swap requests</SectionTitle>
+            {pendingSwaps.map((sw) => {
+              const chore = chores.find((c) => c.id === sw.chore_id);
+              return (
+                <Card key={sw.id}>
+                  <Row style={{ justifyContent: 'space-between' }}>
+                    <Text style={s.cardTitle}>
+                      {memberName(sw.from_member_id)} can't do {chore?.title ?? 'a chore'}
+                    </Text>
+                    {sw.to_member_id == null
+                      ? <Pill text="anyone" tone="dim" />
+                      : sw.to_member_id === me?.id ? <Pill text="asks you" tone="warn" /> : null}
+                  </Row>
+                  {(sw.to_member_id == null || sw.to_member_id === me?.id) && (
+                    <Btn title="I'll take it" onPress={() => guard(() => actions.acceptSwap(sw.id))} />
+                  )}
+                  {sw.to_member_id != null && sw.to_member_id !== me?.id && (
+                    <Text style={s.meta}>Waiting for {memberName(sw.to_member_id)}.</Text>
+                  )}
+                </Card>
+              );
+            })}
+          </>
+        )}
+
+        <ChoreModal visible={addOpen} onClose={() => setAddOpen(false)} />
+        <SwapModal
+          chore={swapFor}
+          onClose={() => setSwapFor(null)}
+          onSubmit={(to) => {
+            if (swapFor) guard(() => actions.requestSwap(swapFor.id, to));
+            setSwapFor(null);
+          }}
+        />
+      </ScrollView>
     </Screen>
   );
 }
 
+/** Karachi date of an ISO stamp, without pulling config into JSX helpers. */
+function localDateOfSafe(iso: string): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Karachi' }).format(new Date(iso));
+}
+
 function SwapModal({
-  visible, onClose, onSubmit,
+  chore, onClose, onSubmit,
 }: {
-  visible: boolean;
+  chore: Chore | null;
   onClose: () => void;
   onSubmit: (toMemberId: string | null) => void;
 }) {
-  const { members, me, pendingSwaps, today } = useApp();
+  const { members, me, swaps, today } = useApp();
   const insets = useSafeAreaInsets();
-  const alreadyRequested = pendingSwaps.some((s) => s.from_member_id === me?.id && s.on_date === today && s.status === 'pending');
+  if (!chore) return null;
+  const alreadyRequested = swaps.some(
+    (s) => s.status === 'pending' && s.from_member_id === me?.id && s.chore_id === chore.id && s.on_date === today
+  );
   const others = members.filter((m) => m.active && m.id !== me?.id);
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+    <Modal visible animationType="slide" transparent onRequestClose={onClose}>
       <View style={s.modalBackdrop}>
         <View style={[s.modalSheet, { paddingBottom: 20 + insets.bottom }]}>
-          <Text style={s.sheetTitle}>Hand over today's turn</Text>
+          <Text style={s.sheetTitle}>Hand over "{chore.title}"</Text>
           {alreadyRequested ? (
-            <Text style={s.meta}>
-              Your request is already out. If nobody takes it, the turn stays yours —
-              ask a sibling directly if it's urgent.
-            </Text>
+            <Text style={s.meta}>Your request is already out — ask a sibling directly if it's urgent.</Text>
           ) : (
             <>
               <Text style={s.meta}>
-                Whoever accepts covers today, and repays you by taking your next turn.
+                Whoever accepts covers it, and repays you by taking your next turn of this chore.
               </Text>
               <Btn title="Ask anyone in the house" onPress={() => onSubmit(null)} />
               <Text style={s.or}>or pick someone specific:</Text>
@@ -203,21 +263,17 @@ function SwapModal({
 const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: C.bg },
   content: { padding: 20, gap: 16, paddingBottom: 40 },
-  turnLabel: { color: C.dim, fontSize: 12, fontWeight: '700', letterSpacing: 1.5 },
-  name: { fontSize: 40, fontWeight: '800', letterSpacing: -0.5 },
-  meta: { color: C.dim, fontSize: 14, textAlign: 'center' },
-  runTitle: { color: C.text, fontSize: 16, fontWeight: '600' },
-  countdown: { fontSize: 28, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  heroLabel: { color: C.dim, fontSize: 12, fontWeight: '700', letterSpacing: 1.5 },
+  heroMeta: { color: C.text, fontSize: 15, textAlign: 'center', marginTop: 6 },
+  cardTitle: { color: C.text, fontSize: 16, fontWeight: '600', flex: 1 },
+  countdown: { fontSize: 26, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  meta: { color: C.dim, fontSize: 13 },
+  stale: { color: C.warn, fontSize: 13 },
   or: { color: C.dim, fontSize: 13, textAlign: 'center' },
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
   modalSheet: {
-    backgroundColor: C.card,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    borderWidth: 1,
-    borderColor: C.border,
-    padding: 20,
-    gap: 12,
+    backgroundColor: C.card, borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    borderWidth: 1, borderColor: C.border, padding: 20, gap: 12,
   },
   sheetTitle: { color: C.text, fontSize: 20, fontWeight: '700' },
 });

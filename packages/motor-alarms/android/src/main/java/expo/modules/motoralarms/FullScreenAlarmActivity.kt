@@ -21,27 +21,14 @@ import androidx.core.app.NotificationManagerCompat
  */
 class FullScreenAlarmActivity : Activity() {
 
-  companion object {
-    const val EXTRA_KIND = "kind"
-    const val KIND_DAILY = "daily"
-    const val KIND_STOP = "stop"
-  }
-
-  private val kind by lazy { intent?.getStringExtra(EXTRA_KIND) ?: KIND_STOP }
-  private val notifId
-    get() = if (kind == KIND_DAILY) AlarmScheduler.NOTIF_ID_DAILY else AlarmScheduler.NOTIF_ID_STOP
-
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     setShowWhenLocked(true)
     setTurnScreenOn(true)
 
-    val isStop = kind == KIND_STOP
-    val title = if (isStop) "STOP THE MOTOR" else "MOTOR TIME"
-    val body = if (isStop)
-      "The run is over — switch the motor off, then confirm in the app"
-    else
-      "Water motor turn — open the app to see whose day it is"
+    val id = intent?.getStringExtra(AlarmReceiver.EXTRA_ID)
+    val title = intent?.getStringExtra(AlarmReceiver.EXTRA_TITLE) ?: "Chore due"
+    val body = intent?.getStringExtra(AlarmReceiver.EXTRA_BODY) ?: ""
 
     val dp = resources.displayMetrics.density
     val pad = (dp * 28).toInt()
@@ -53,9 +40,9 @@ class FullScreenAlarmActivity : Activity() {
       setPadding(pad, pad, pad, pad)
     }
     val titleView = TextView(this).apply {
-      text = title
-      textSize = if (isStop) 36f else 32f
-      setTextColor(if (isStop) 0xFFF87171.toInt() else 0xFF22D3EE.toInt())
+      text = title.uppercase()
+      textSize = 32f
+      setTextColor(0xFF22D3EE.toInt())
       typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
       gravity = Gravity.CENTER
     }
@@ -79,7 +66,10 @@ class FullScreenAlarmActivity : Activity() {
     root.addView(open)
     root.addView(dismiss)
     setContentView(root)
+    notifIdToCancel = id?.let { AlarmScheduler.notifId(it) }
   }
+
+  private var notifIdToCancel: Int? = null
 
   private fun launchMain() {
     packageManager.getLaunchIntentForPackage(packageName)?.let {
@@ -92,18 +82,20 @@ class FullScreenAlarmActivity : Activity() {
   override fun onDestroy() {
     // the insistent sound loops until its notification is cancelled — either
     // button here counts as "acknowledged"
-    NotificationManagerCompat.from(this).cancel(notifId)
+    notifIdToCancel?.let { NotificationManagerCompat.from(this).cancel(it) }
     super.onDestroy()
   }
 }
 
 /** PendingIntents targeting the takeover screen. */
 object FullScreen {
-  fun intent(ctx: Context, kind: String): PendingIntent =
+  fun intent(ctx: Context, alarm: AlarmScheduler.Alarm): PendingIntent =
     PendingIntent.getActivity(
-      ctx, kind.hashCode(),
+      ctx, (AlarmScheduler.ACTION_PREFIX + alarm.id).hashCode(),
       Intent(ctx, FullScreenAlarmActivity::class.java)
-        .putExtra(FullScreenAlarmActivity.EXTRA_KIND, kind)
+        .putExtra(AlarmReceiver.EXTRA_ID, alarm.id)
+        .putExtra(AlarmReceiver.EXTRA_TITLE, alarm.title)
+        .putExtra(AlarmReceiver.EXTRA_BODY, alarm.body)
         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
       PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
     )

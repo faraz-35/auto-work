@@ -5,9 +5,10 @@ import { DarkTheme, NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { C } from './src/theme';
 import { AppProvider, useApp } from './src/state/AppContext';
-import { OnboardingScreen } from './src/screens/OnboardingScreen';
+import { NameScreen } from './src/screens/NameScreen';
 import { TodayScreen } from './src/screens/TodayScreen';
-import { HistoryScreen } from './src/screens/HistoryScreen';
+import { ChoresScreen } from './src/screens/ChoresScreen';
+import { LedgerScreen } from './src/screens/LedgerScreen';
 import { FamilyScreen } from './src/screens/FamilyScreen';
 
 const Tabs = createBottomTabNavigator();
@@ -25,7 +26,7 @@ const navTheme = {
 };
 
 function Root() {
-  const { phase, error } = useApp();
+  const { phase } = useApp();
 
   if (phase === 'boot') {
     return (
@@ -36,17 +37,7 @@ function Root() {
     );
   }
 
-  if (phase === 'error') {
-    return (
-      <View style={s.center}>
-        <Text style={s.errorTitle}>Can't reach the server</Text>
-        <Text style={s.errorBody}>{error}</Text>
-        <Text style={s.errorBody}>Alarms already scheduled on this phone still work.</Text>
-      </View>
-    );
-  }
-
-  if (phase === 'needOnboarding') return <OnboardingScreen />;
+  if (phase === 'needName') return <NameScreen />;
 
   return (
     <Tabs.Navigator
@@ -58,7 +49,8 @@ function Root() {
       }}
     >
       <Tabs.Screen name="Today" component={TodayScreen} />
-      <Tabs.Screen name="History" component={HistoryScreen} />
+      <Tabs.Screen name="Chores" component={ChoresScreen} />
+      <Tabs.Screen name="Ledger" component={LedgerScreen} />
       <Tabs.Screen name="Family" component={FamilyScreen} />
     </Tabs.Navigator>
   );
@@ -78,6 +70,4 @@ export default function App() {
 const s = StyleSheet.create({
   center: { flex: 1, backgroundColor: C.bg, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 32 },
   bootText: { color: C.dim, fontSize: 14 },
-  errorTitle: { color: C.bad, fontSize: 20, fontWeight: '700' },
-  errorBody: { color: C.dim, fontSize: 14, textAlign: 'center' },
 });

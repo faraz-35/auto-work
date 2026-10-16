@@ -1,2 +1,0 @@
-int drawable ic_motor_stat 0x0
-int raw motor_alarm 0x0

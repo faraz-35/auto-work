@@ -10,3 +10,5 @@ app/dist/
 motor.keystore
 keystore.env
 Motor-*.apk
+packages/motor-alarms/android/build/
+packages/motor-alarms/android/.gradle/

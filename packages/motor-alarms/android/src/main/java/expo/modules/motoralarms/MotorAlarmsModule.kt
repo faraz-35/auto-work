@@ -11,26 +11,16 @@ class MotorAlarmsModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("MotorAlarms")
 
-    AsyncFunction("scheduleDaily") { hour: Int, minute: Int ->
+    // Full desired-state reconcile: {"<id>": {at, title, body, rechain}}.
+    // Alarms missing from the JSON are cancelled; the set persists for boot.
+    AsyncFunction("syncAlarms") { json: String ->
       val c = ctx ?: throw IllegalStateException("no context")
-      AlarmScheduler.scheduleDaily(c, hour, minute)
+      AlarmScheduler.ensureChannels(c)
+      AlarmScheduler.syncAlarms(c, json)
     }
 
-    AsyncFunction("cancelDaily") {
-      ctx?.let { AlarmScheduler.cancelDaily(it) }
-    }
-
-    AsyncFunction("armStopAlarm") { atEpochMs: Double ->
-      val c = ctx ?: throw IllegalStateException("no context")
-      AlarmScheduler.armStop(c, atEpochMs.toLong())
-    }
-
-    AsyncFunction("cancelStopAlarm") {
-      ctx?.let { AlarmScheduler.cancelStop(it) }
-    }
-
-    AsyncFunction("snoozeStopAlarm") { minutes: Int ->
-      ctx?.let { AlarmScheduler.snooze(it, minutes) }
+    AsyncFunction("snoozeAlarm") { id: String, minutes: Int ->
+      ctx?.let { AlarmScheduler.snooze(it, id, minutes) }
     }
 
     AsyncFunction("setSnoozeMinutes") { minutes: Int ->
@@ -39,10 +29,6 @@ class MotorAlarmsModule : Module() {
 
     Function("isIgnoringBatteryOptimizations") {
       ctx?.let { AlarmScheduler.isIgnoringBatteryOptimizations(it) } ?: false
-    }
-
-    Function("exactAlarmsEnabled") {
-      ctx?.let { AlarmScheduler.canExact(it) } ?: false
     }
 
     Function("notificationsEnabled") {
@@ -59,10 +45,6 @@ class MotorAlarmsModule : Module() {
 
     AsyncFunction("requestIgnoreBatteryOptimizations") {
       ctx?.let { AlarmScheduler.requestIgnoreBatteryOptimizations(it) }
-    }
-
-    AsyncFunction("openExactAlarmSettings") {
-      ctx?.let { AlarmScheduler.openExactAlarmSettings(it) }
     }
 
     AsyncFunction("openNotificationSettings") {

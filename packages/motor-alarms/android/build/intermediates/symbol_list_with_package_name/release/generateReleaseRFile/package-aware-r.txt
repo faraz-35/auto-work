@@ -1,3 +1,0 @@
-expo.modules.motoralarms
-drawable ic_motor_stat
-raw motor_alarm

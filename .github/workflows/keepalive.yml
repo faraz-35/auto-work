@@ -1,0 +1,20 @@
+# Pings the Supabase project twice a week so the free tier never sees a week
+# of inactivity and pauses the household's backend.
+name: keepalive
+
+on:
+  schedule:
+    - cron: '17 3 * * 1,4'  # Mon+Thu 03:17 UTC
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: ping
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' -X POST \
+            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "Content-Type: application/json" \
+            "${{ secrets.SUPABASE_URL }}/rest/v1/rpc/ping")
+          echo "ping -> $code"
+          test "$code" = "200"

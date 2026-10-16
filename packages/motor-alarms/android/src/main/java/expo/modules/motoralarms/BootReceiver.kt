@@ -5,7 +5,7 @@ import android.content.Context
 import android.content.Intent
 
 /**
- * Android cancels all alarms on reboot. Scheduled state lives in
+ * Android cancels all alarms on reboot. The scheduled set lives in
  * SharedPreferences, so this receiver re-arms everything without needing
  * JavaScript to run first.
  */
@@ -16,13 +16,7 @@ class BootReceiver : BroadcastReceiver() {
       Intent.ACTION_BOOT_COMPLETED,
       "android.intent.action.QUICKBOOT_POWERON" -> {
         AlarmScheduler.ensureChannels(context)
-        AlarmScheduler.armNextDaily(context)
-        val stopAt = AlarmScheduler.stopAt(context)
-        if (stopAt > System.currentTimeMillis()) {
-          AlarmScheduler.armStop(context, stopAt)
-        } else {
-          AlarmScheduler.cancelStop(context)
-        }
+        AlarmScheduler.rearmAll(context)
       }
     }
   }

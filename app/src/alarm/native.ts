@@ -1,19 +1,15 @@
 import { requireNativeModule } from 'expo';
 
 type MotorAlarmsNative = {
-  scheduleDaily(hour: number, minute: number): Promise<void>;
-  cancelDaily(): Promise<void>;
-  armStopAlarm(atEpochMs: number): Promise<void>;
-  cancelStopAlarm(): Promise<void>;
-  snoozeStopAlarm(minutes: number): Promise<void>;
+  /** Full desired-state reconcile: {"<id>": {at, title, body, rechain}}. */
+  syncAlarms(json: string): Promise<void>;
+  snoozeAlarm(id: string, minutes: number): Promise<void>;
   setSnoozeMinutes(minutes: number): Promise<void>;
   isIgnoringBatteryOptimizations(): boolean;
   requestIgnoreBatteryOptimizations(): Promise<void>;
-  exactAlarmsEnabled(): boolean;
   notificationsEnabled(): boolean;
   openAutostartSettings(): boolean;
   openAppDetails(): void;
-  openExactAlarmSettings(): Promise<void>;
   openNotificationSettings(): Promise<void>;
 };
 
