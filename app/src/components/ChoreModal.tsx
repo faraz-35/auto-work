@@ -1,20 +1,33 @@
 import { useEffect, useState } from 'react';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { Alert, StyleSheet, TextInput } from 'react-native';
 import { C, T, W } from '../theme';
-import { Btn, Chip, Field, Row, roles } from './ui';
+import { Btn, Chip, IconField, Row, Segmented, Stepper, Token } from './ui';
 import { Sheet } from './Sheet';
 import { ChoreDraft } from '../db/api';
 import type { Chore } from '../types';
 import { useApp } from '../state/AppContext';
 import { addDays, localDate } from '../logic/rotation';
-import { formatDay } from '../logic/human';
-
-const todayStr = () => localDate();
-const tomorrowStr = () => addDays(localDate(), 1);
-const humanDay = (d: string) => (dateOk(d) ? formatDay(d) : d);
-function dateOk(d: string) { return /^\d{4}-\d{2}-\d{2}$/.test(d); }
+import { formatDay, formatTime12 } from '../logic/human';
 
 type Mode = 'once' | 'every' | 'monthly';
+const MODES: Mode[] = ['once', 'every', 'monthly'];
+
+/** Common chore times; the stepper covers everything else. */
+const TIME_PRESETS: [string, string][] = [['Morning', '09:00'], ['Evening', '18:00'], ['Night', '21:00']];
+
+const stepTime = (t: string, dir: number) => {
+  const [h, m] = t.split(':').map(Number);
+  const total = Math.min(1425, Math.max(0, h * 60 + m + dir * 15));
+  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+};
+
+/** Wall-clock "HH:MM" in the household's timezone — due_at comes back from
+ *  the server in UTC, so slicing the string reads the wrong hour. */
+const karachiTime = (iso: string) =>
+  new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Karachi', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(iso));
+
+/** The ordinal word used by scheduleLabel: "on the 25". */
+const ordinal = (n: number) => `${n}${n === 1 || n === 21 ? 'st' : n === 2 || n === 22 ? 'nd' : n === 3 || n === 23 ? 'rd' : 'th'}`;
 
 type Props = {
   visible: boolean;
@@ -22,9 +35,10 @@ type Props = {
   editing?: Chore | null;
 };
 
-/** Create / edit a chore. Fast path first: name it, pick who and when, add.
- *  Rare fields (note, amount, duration) stay folded away until asked for.
- *  Strict chores ring a real alarm on the assignee's phone. */
+/** Create / edit a chore. One input line, one strip of detail tokens, add.
+ *  Nothing else shows until a token is tapped — who, when and note/amount/
+ *  duration each unfold in place. Strict chores ring a real alarm on the
+ *  assignee's phone. */
 export function ChoreModal({ visible, onClose, editing = null }: Props) {
   const { members, me, actions } = useApp();
 
@@ -32,49 +46,59 @@ export function ChoreModal({ visible, onClose, editing = null }: Props) {
   const [note, setNote] = useState('');
   const [assigneeId, setAssigneeId] = useState<string>('rotate');
   const [mode, setMode] = useState<Mode>('once');
-  const [onceDate, setOnceDate] = useState('');
-  const [onceTime, setOnceTime] = useState('18:00');
-  const [everyDays, setEveryDays] = useState('1');
-  const [everyTime, setEveryTime] = useState('18:00');
-  const [monthlyDay, setMonthlyDay] = useState('25');
-  const [monthlyTime, setMonthlyTime] = useState('09:00');
+  const [onceDate, setOnceDate] = useState(() => localDate());
+  const [time, setTime] = useState('18:00');
+  const [everyDays, setEveryDays] = useState(1);
+  const [monthlyDay, setMonthlyDay] = useState(25);
   const [strict, setStrict] = useState(false);
   const [amount, setAmount] = useState('');
   const [duration, setDuration] = useState('');
-  const [moreOpen, setMoreOpen] = useState(false);
+  const [open, setOpen] = useState<'who' | 'when' | 'more' | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (!visible) return;
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Karachi' }).format(new Date());
     if (editing) {
       setTitle(editing.title);
       setNote(editing.note ?? '');
       setAssigneeId(editing.rotate ? 'rotate' : editing.assignee_member_id ?? '');
       setMode(editing.due_at != null ? 'once' : editing.repeat_days != null ? 'every' : 'monthly');
       if (editing.due_at) {
-        const d = new Date(editing.due_at);
-        setOnceDate(new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Karachi' }).format(d));
-        setOnceTime(editing.due_at.slice(11, 16) || '18:00');
+        setOnceDate(new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Karachi' }).format(new Date(editing.due_at)));
+        setTime(karachiTime(editing.due_at) || '18:00');
+      } else {
+        setTime(editing.time_of_day.slice(0, 5) || '18:00');
       }
-      setEveryDays(String(editing.repeat_days ?? 1));
-      setEveryTime(editing.time_of_day.slice(0, 5));
-      setMonthlyDay(String(editing.repeat_monthly_day ?? 25));
-      setMonthlyTime(editing.time_of_day.slice(0, 5));
+      setEveryDays(editing.repeat_days ?? 1);
+      setMonthlyDay(editing.repeat_monthly_day ?? 25);
       setStrict(editing.strict);
       setAmount(editing.amount != null ? String(editing.amount) : '');
       setDuration(editing.duration_minutes != null ? String(editing.duration_minutes) : '');
-      setMoreOpen(editing.note != null || editing.amount != null || editing.duration_minutes != null);
     } else {
       setTitle(''); setNote(''); setAssigneeId('rotate'); setMode('once');
-      setOnceDate(addDays(new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Karachi' }).format(new Date()), 0));
-      setOnceTime('18:00'); setEveryDays('1'); setEveryTime('18:00');
-      setMonthlyDay('25'); setMonthlyTime('09:00');
+      setOnceDate(today); setTime('18:00');
+      setEveryDays(1); setMonthlyDay(25);
       setStrict(false); setAmount(''); setDuration('');
-      setMoreOpen(false);
     }
+    setOpen(null);
   }, [visible, editing]);
 
-  const timeOk = (t: string) => /^\d{1,2}:\d{2}$/.test(t);
+  const whoLabel = () => {
+    if (assigneeId === 'rotate') return 'Rotate';
+    const m = members.find((x) => x.id === assigneeId);
+    return m ? (m.id === me?.id ? `${m.name} (you)` : m.name) : 'Rotate';
+  };
+
+  const whenLabel = () => {
+    const at = formatTime12(time);
+    if (mode === 'once') return `${formatDay(onceDate)} ${at}`;
+    if (mode === 'every') return everyDays === 1 ? `Daily ${at}` : `Every ${everyDays} days ${at}`;
+    return `Monthly on the ${ordinal(monthlyDay)} ${at}`;
+  };
+
+  const moreParts = [note.trim(), amount.trim() !== '' ? `Rs ${Number(amount)}` : '', duration.trim() !== '' ? `${duration} min` : ''].filter(Boolean);
+  const toggle = (key: 'who' | 'when' | 'more') => setOpen((cur) => (cur === key ? null : key));
 
   const submit = async () => {
     try {
@@ -86,9 +110,6 @@ export function ChoreModal({ visible, onClose, editing = null }: Props) {
       if (amountN != null && !(amountN > 0)) throw new Error('Amount must be more than 0.');
       const durationN = duration.trim() === '' ? null : Number(duration);
       if (durationN != null && !(durationN >= 1 && durationN <= 120)) throw new Error('Duration must be 1–120 minutes.');
-      if (!timeOk(mode === 'once' ? onceTime : mode === 'every' ? everyTime : monthlyTime)) {
-        throw new Error('Time must look like 18:00.');
-      }
 
       const draft: ChoreDraft = {
         title: trimmed,
@@ -100,18 +121,13 @@ export function ChoreModal({ visible, onClose, editing = null }: Props) {
         durationMinutes: durationN,
       };
       if (mode === 'once') {
-        if (!dateOk(onceDate)) throw new Error('Date must look like 2026-10-17.');
-        draft.dueAt = `${onceDate}T${onceTime}:00+05:00`;
+        draft.dueAt = `${onceDate}T${time}:00+05:00`;
       } else if (mode === 'every') {
-        const n = Number(everyDays);
-        if (!(n >= 1 && n <= 365)) throw new Error('Repeat days must be 1–365.');
-        draft.repeatDays = n;
-        draft.timeOfDay = `${everyTime}:00`;
+        draft.repeatDays = everyDays;
+        draft.timeOfDay = `${time}:00`;
       } else {
-        const n = Number(monthlyDay);
-        if (!(n >= 1 && n <= 28)) throw new Error('Day of month must be 1–28.');
-        draft.repeatMonthlyDay = n;
-        draft.timeOfDay = `${monthlyTime}:00`;
+        draft.repeatMonthlyDay = monthlyDay;
+        draft.timeOfDay = `${time}:00`;
       }
 
       setBusy(true);
@@ -135,122 +151,120 @@ export function ChoreModal({ visible, onClose, editing = null }: Props) {
     }
   };
 
+  const today = localDate();
+
   return (
     <Sheet visible={visible} onClose={onClose} title={editing ? 'Edit chore' : 'New chore'} scroll>
-      <Field
-        label="What needs doing"
+      <TextInput
+        style={s.titleInput}
         value={title}
         onChangeText={setTitle}
-        placeholder="Pay the electricity bill"
+        placeholder="What needs doing?"
+        placeholderTextColor={C.dim}
         autoFocus
+        returnKeyType="done"
       />
 
-      <Text style={s.label}>Who</Text>
       <Row style={{ flexWrap: 'wrap' }}>
-        <Chip active={assigneeId === 'rotate'} label="Rotating" onPress={() => setAssigneeId('rotate')} />
-        {members.filter((m) => m.active).map((m) => (
-          <Chip
-            key={m.id}
-            active={assigneeId === m.id}
-            label={m.id === me?.id ? `${m.name} (you)` : m.name}
-            onPress={() => setAssigneeId(m.id)}
-          />
-        ))}
+        <Token icon="person-outline" label={whoLabel()} active={open === 'who'} shrink onPress={() => toggle('who')} />
+        <Token icon="calendar-outline" label={whenLabel()} active={open === 'when'} shrink onPress={() => toggle('when')} />
+        <Token
+          icon={strict ? 'notifications' : 'notifications-off-outline'}
+          active={strict}
+          tone="warn"
+          accessibilityLabel={strict ? 'Alarm rings at the deadline — tap to turn off' : 'No alarm — tap to ring one at the deadline'}
+          onPress={() => setStrict(!strict)}
+        />
+        <Token
+          icon="add"
+          label={moreParts.length > 0 ? moreParts.join(' · ') : undefined}
+          accessibilityLabel="Add a note, amount or duration"
+          active={open === 'more'}
+          shrink
+          onPress={() => toggle('more')}
+        />
       </Row>
-      {assigneeId === 'rotate' && (
-        <Text style={roles.meta}>Everyone active takes a turn, one after another.</Text>
-      )}
 
-      <Text style={s.label}>When</Text>
-      <Row>
-        <Chip active={mode === 'once'} label="Once" onPress={() => setMode('once')} />
-        <Chip active={mode === 'every'} label="Every N days" onPress={() => setMode('every')} />
-        <Chip active={mode === 'monthly'} label="Monthly" onPress={() => setMode('monthly')} />
-      </Row>
-      {mode === 'once' && (
-        <>
-          <Row style={{ flexWrap: 'wrap' }}>
-            <Chip active={onceDate === todayStr()} label="Today" onPress={() => setOnceDate(todayStr())} />
-            <Chip active={onceDate === tomorrowStr()} label="Tomorrow" onPress={() => setOnceDate(tomorrowStr())} />
-            {dateOk(onceDate) && onceDate !== todayStr() && onceDate !== tomorrowStr() && (
-              <Chip active label={humanDay(onceDate)} onPress={() => undefined} />
-            )}
-          </Row>
-          <Row>
-            <View style={{ flex: 1 }}>
-              <Field label="Date (YYYY-MM-DD)" value={onceDate} onChangeText={setOnceDate} placeholder="2026-10-17" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Field label="Time" value={onceTime} onChangeText={setOnceTime} placeholder="18:00" />
-            </View>
-          </Row>
-        </>
-      )}
-      {mode === 'every' && (
-        <Row>
-          <View style={{ flex: 1 }}>
-            <Field label="Every" value={everyDays} onChangeText={setEveryDays} keyboardType="number-pad" placeholder="1" />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Field label="Time" value={everyTime} onChangeText={setEveryTime} placeholder="18:00" />
-          </View>
-        </Row>
-      )}
-      {mode === 'monthly' && (
-        <Row>
-          <View style={{ flex: 1 }}>
-            <Field label="Day of month" value={monthlyDay} onChangeText={setMonthlyDay} keyboardType="number-pad" placeholder="25" />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Field label="Time" value={monthlyTime} onChangeText={setMonthlyTime} placeholder="09:00" />
-          </View>
+      {open === 'who' && (
+        <Row style={{ flexWrap: 'wrap' }}>
+          <Chip active={assigneeId === 'rotate'} label="Rotating" onPress={() => { setAssigneeId('rotate'); setOpen(null); }} />
+          {members.filter((m) => m.active).map((m) => (
+            <Chip
+              key={m.id}
+              active={assigneeId === m.id}
+              label={m.id === me?.id ? `${m.name} (you)` : m.name}
+              onPress={() => { setAssigneeId(m.id); setOpen(null); }}
+            />
+          ))}
         </Row>
       )}
 
-      <Text style={s.label}>Deadline</Text>
-      <Row style={{ alignItems: 'center' }}>
-        <Chip active={strict} label={strict ? 'Rings an alarm' : 'No alarm'} onPress={() => setStrict(!strict)} />
-        <Text style={[roles.meta, { flex: 1 }]}>
-          {strict
-            ? 'Full-screen alarm on the assignee\'s phone at the deadline.'
-            : 'Just shows on the today list.'}
-        </Text>
-      </Row>
-
-      {moreOpen ? (
+      {open === 'when' && (
         <>
-          <Field label="Note (optional)" value={note} onChangeText={setNote} placeholder="KE bill, online portal" />
-          <Row>
-            <View style={{ flex: 1 }}>
-              <Field label="Rs (optional, for bills)" value={amount} onChangeText={setAmount} keyboardType="number-pad" placeholder="4500" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Field label="Takes ~min (optional)" value={duration} onChangeText={setDuration} keyboardType="number-pad" placeholder="10" />
-            </View>
-          </Row>
-          {duration.trim() !== '' && (
-            <Text style={roles.meta}>
-              When started, a second chore appears to close it — that's how the motor works.
-            </Text>
+          <Segmented options={['Once', 'Every', 'Monthly']} index={MODES.indexOf(mode)} onChange={(i) => setMode(MODES[i])} />
+          {mode === 'once' && (
+            <Row style={{ flexWrap: 'wrap' }}>
+              <Chip active={onceDate === today} label="Today" onPress={() => setOnceDate(today)} />
+              <Chip active={onceDate === addDays(today, 1)} label="Tomorrow" onPress={() => setOnceDate(addDays(today, 1))} />
+            </Row>
           )}
+          <Row>
+            {mode === 'once' && (
+              <Stepper
+                value={formatDay(onceDate)}
+                onDec={() => setOnceDate(addDays(onceDate, -1))}
+                onInc={() => setOnceDate(addDays(onceDate, 1))}
+                canDec={onceDate > today}
+              />
+            )}
+            {mode === 'every' && (
+              <Stepper
+                value={everyDays === 1 ? 'every day' : `every ${everyDays} days`}
+                onDec={() => setEveryDays(Math.max(1, everyDays - 1))}
+                onInc={() => setEveryDays(Math.min(365, everyDays + 1))}
+                canDec={everyDays > 1}
+                canInc={everyDays < 365}
+              />
+            )}
+            {mode === 'monthly' && (
+              <Stepper
+                value={`on the ${ordinal(monthlyDay)}`}
+                onDec={() => setMonthlyDay(Math.max(1, monthlyDay - 1))}
+                onInc={() => setMonthlyDay(Math.min(28, monthlyDay + 1))}
+                canDec={monthlyDay > 1}
+                canInc={monthlyDay < 28}
+              />
+            )}
+            <Stepper value={formatTime12(time)} onDec={() => setTime(stepTime(time, -15))} onInc={() => setTime(stepTime(time, 15))} />
+          </Row>
+          <Row>
+            {TIME_PRESETS.map(([label, t]) => (
+              <Chip key={label} label={label} active={time === t} onPress={() => setTime(t)} />
+            ))}
+          </Row>
         </>
-      ) : (
-        <Btn title="Note, amount, duration…" kind="link" onPress={() => setMoreOpen(true)} />
+      )}
+
+      {open === 'more' && (
+        <>
+          <IconField icon="create-outline" value={note} onChangeText={setNote} placeholder="Note" />
+          <Row>
+            <IconField icon="cash-outline" prefix="Rs" value={amount} onChangeText={setAmount} keyboardType="number-pad" placeholder="4500" style={{ flex: 1 }} />
+            <IconField icon="time-outline" suffix="min" value={duration} onChangeText={setDuration} keyboardType="number-pad" placeholder="10" style={{ width: 128 }} />
+          </Row>
+        </>
       )}
 
       <Btn title={editing ? 'Save changes' : 'Add chore'} onPress={submit} loading={busy} />
-      <Btn title="Cancel" kind="link" onPress={onClose} />
     </Sheet>
   );
 }
 
 const s = StyleSheet.create({
-  label: {
-    color: C.dim,
-    fontSize: T.tiny,
-    fontWeight: W.bold,
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-    marginTop: 4,
+  titleInput: {
+    color: C.text,
+    fontSize: T.heading,
+    fontWeight: W.semibold,
+    paddingVertical: 6,
   },
 });

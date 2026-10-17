@@ -70,6 +70,128 @@ export function Chip({ label, active, onPress }: { label: string; active?: boole
   );
 }
 
+/** Icon (+ optional value text) pill for detail strips — tap to expand or
+ *  toggle what it stands for. `tone` colors the active state. */
+export function Token({
+  icon, label, active, tone = 'accent', onPress, accessibilityLabel, shrink,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label?: string;
+  active?: boolean;
+  tone?: 'accent' | 'warn';
+  onPress: () => void;
+  accessibilityLabel?: string;
+  shrink?: boolean;
+}) {
+  const fg = active ? (tone === 'warn' ? C.warn : C.accent) : C.dim;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel ?? label}
+      accessibilityState={{ selected: !!active }}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.token,
+        shrink && { flexShrink: 1 },
+        active && { borderColor: tone === 'warn' ? C.warn : C.accent, backgroundColor: tone === 'warn' ? C.warnBg : C.accentBg },
+        pressed && !active && { backgroundColor: C.card },
+      ]}
+    >
+      <Ionicons name={icon} size={15} color={fg} />
+      {label != null && (
+        <Text numberOfLines={1} style={[styles.tokenText, { color: fg }]}>{label}</Text>
+      )}
+    </Pressable>
+  );
+}
+
+/** Segmented control — the only way to pick one of a few modes. */
+export function Segmented({
+  options, index, onChange,
+}: {
+  options: string[];
+  index: number;
+  onChange: (i: number) => void;
+}) {
+  return (
+    <View style={styles.segmented}>
+      {options.map((opt, i) => (
+        <Pressable
+          key={opt}
+          accessibilityRole="button"
+          accessibilityState={{ selected: i === index }}
+          onPress={() => onChange(i)}
+          style={({ pressed }) => [
+            styles.segment,
+            i === index && styles.segmentOn,
+            pressed && i !== index && { backgroundColor: C.card },
+          ]}
+        >
+          <Text style={[styles.segmentText, i === index && styles.segmentTextOn]}>{opt}</Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
+/** Tap-to-adjust value: [−] value [+]. The owner clamps and formats;
+ *  the stepper never lets a step through when canDec/canInc is false. */
+export function Stepper({
+  value, onDec, onInc, canDec = true, canInc = true,
+}: {
+  value: string;
+  onDec: () => void;
+  onInc: () => void;
+  canDec?: boolean;
+  canInc?: boolean;
+}) {
+  const dim = { opacity: 0.35 };
+  return (
+    <View style={styles.stepper}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Decrease" hitSlop={8} onPress={onDec} disabled={!canDec} style={({ pressed }) => [styles.stepBtn, !canDec && dim, pressed && { opacity: 0.6 }]}>
+        <Ionicons name="remove" size={18} color={C.text} />
+      </Pressable>
+      <Text style={styles.stepValue}>{value}</Text>
+      <Pressable accessibilityRole="button" accessibilityLabel="Increase" hitSlop={8} onPress={onInc} disabled={!canInc} style={({ pressed }) => [styles.stepBtn, !canInc && dim, pressed && { opacity: 0.6 }]}>
+        <Ionicons name="add" size={18} color={C.text} />
+      </Pressable>
+    </View>
+  );
+}
+
+/** Boxed text input with a leading icon and optional unit text — the
+ *  labeled Field, collapsed into one line. */
+export function IconField({
+  icon, prefix, suffix, value, onChangeText, placeholder, keyboardType = 'default', style,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  prefix?: string;
+  suffix?: string;
+  value: string;
+  onChangeText: (s: string) => void;
+  placeholder?: string;
+  keyboardType?: 'default' | 'number-pad';
+  style?: StyleProp<ViewStyle>;
+}) {
+  return (
+    <View style={[styles.iconField, style]}>
+      <Ionicons name={icon} size={16} color={C.dim} />
+      {prefix && <Text style={styles.iconFieldUnit}>{prefix}</Text>}
+      <TextInput
+        style={styles.iconFieldInput}
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={placeholder}
+        placeholderTextColor={C.dim}
+        keyboardType={keyboardType}
+        autoCapitalize="sentences"
+        autoCorrect={false}
+      />
+      {suffix && <Text style={styles.iconFieldUnit}>{suffix}</Text>}
+    </View>
+  );
+}
+
 /** Round accent action button (create actions). */
 export function Fab({ icon, onPress, label }: { icon: 'add'; onPress: () => void; label: string }) {
   return (
@@ -184,6 +306,56 @@ const styles = StyleSheet.create({
     backgroundColor: C.cardRaised,
   },
   chipText: { color: C.text, fontSize: T.body },
+  token: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderRadius: R.pill,
+    borderWidth: 1,
+    borderColor: 'transparent',
+    backgroundColor: C.cardRaised,
+    paddingLeft: 12,
+    paddingRight: 13,
+    height: 34,
+  },
+  tokenText: { fontSize: T.body, flexShrink: 1 },
+  segmented: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    borderRadius: R.pill,
+    padding: 2,
+  },
+  segment: {
+    flex: 1,
+    paddingVertical: 6,
+    borderRadius: R.pill,
+    alignItems: 'center',
+  },
+  segmentOn: { backgroundColor: C.accentBg, borderWidth: 1, borderColor: C.border },
+  segmentText: { color: C.dim, fontSize: T.body },
+  segmentTextOn: { color: C.accent, fontWeight: W.semibold },
+  stepper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    borderRadius: R.pill,
+    paddingLeft: 5,
+    paddingRight: 5,
+    height: 34,
+  },
+  stepBtn: { width: 26, height: 26, borderRadius: 13, backgroundColor: C.cardRaised, alignItems: 'center', justifyContent: 'center' },
+  stepValue: { color: C.text, fontSize: T.body, fontWeight: W.semibold, fontVariant: ['tabular-nums'], minWidth: 64, textAlign: 'center' },
+  iconField: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    borderRadius: R.input,
+    paddingHorizontal: 12,
+    height: 42,
+  },
+  iconFieldUnit: { color: C.dim, fontSize: T.body, fontWeight: W.medium },
+  iconFieldInput: { flex: 1, color: C.text, fontSize: T.title, paddingVertical: 10 },
   pill: {
     borderRadius: R.pill,
     paddingHorizontal: 10,
