@@ -56,11 +56,11 @@ function UpdateSheet({ release, onClose }: { release: Release; onClose: () => vo
     <Modal visible animationType="slide" transparent onRequestClose={onClose}>
       <Pressable style={s.backdrop} onPress={onClose}>
         <Pressable style={[s.sheet, { paddingBottom: 16 + insets.bottom }]} onPress={() => undefined}>
-          <Text style={s.title}>Update Ghar</Text>
+          <Text style={s.title}>Update Auto Work</Text>
           <Text style={s.subtitle}>
             {stage === 'downloading'
-              ? pct != null ? `Downloading Ghar ${name}… ${pct}%` : `Downloading Ghar ${name}…`
-              : `Ghar ${name} is out. It downloads about ${mb} MB, then Android installs it.`}
+              ? pct != null ? `Downloading Auto Work ${name}… ${pct}%` : `Downloading Auto Work ${name}…`
+              : `Auto Work ${name} is out. It downloads about ${mb} MB, then Android installs it.`}
           </Text>
           {stage === 'downloading' && (
             <View style={s.track}>
@@ -74,7 +74,7 @@ function UpdateSheet({ release, onClose }: { release: Release; onClose: () => vo
           )}
           {stage === 'failed' && <Text style={s.error}>Download failed: {error}</Text>}
           {stage === 'downloading' ? (
-            <Text style={s.hint}>You can keep using Ghar; Android asks when it's ready.</Text>
+            <Text style={s.hint}>You can keep using Auto Work; Android asks when it's ready.</Text>
           ) : (
             <>
               <Btn title={stage === 'failed' ? 'Try again' : 'Update now'} onPress={() => void start()} />

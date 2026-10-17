@@ -1,4 +1,6 @@
-# Ghar
+# Auto Work
+
+The family calls the app **Auto Work** — it used to be called Ghar ("home").
 
 The house's one app: everything that needs doing, who's doing it, and by when —
 with alarms that actually ring. The water motor is just a chore here (starting
@@ -30,7 +32,7 @@ anyone buys goes in the ledger. No login: a new phone types a name and it's in.
   alarms.
 - **The ledger** is the ported home-invoice: insert purchases, monthly
   per-member totals, two-tap delete. Bills-to-pay are chores, not ledger rows.
-- **In-app updates.** On every app open, Ghar asks GitHub for the latest
+- **In-app updates.** On every app open, Auto Work asks GitHub for the latest
   release; when it's newer, a bottom sheet offers the update, downloads the
   APK with a progress bar, and Android's installer takes over. First update
   on a phone also asks once for "allow from this source". Publishing remains
@@ -88,9 +90,9 @@ Alarms only ring reliably if Android lets them. On each phone, once:
 2. Family tab → **Make alarms reliable**: allow notifications, exempt from
    battery optimization (green checkmarks).
 3. Autostart (manual on their ROMs):
-   - **Redmi (MIUI)**: Security app → Permissions → Autostart → enable Ghar.
-     Also Settings → Apps → Ghar → Battery saver → "No restrictions".
-   - **Infinix (HiOS)**: Phone Master/HiOS settings → autostart for Ghar; keep
+   - **Redmi (MIUI)**: Security app → Permissions → Autostart → enable Auto Work.
+     Also Settings → Apps → Auto Work → Battery saver → "No restrictions".
+   - **Infinix (HiOS)**: Phone Master/HiOS settings → autostart for Auto Work; keep
      it off "smart" battery cleaning lists.
 4. Test once: Family tab → "Ring a test alarm in 1 minute" → lock the phone →
    it must light up the screen and ring.

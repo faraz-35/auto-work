@@ -119,8 +119,8 @@ export function FamilyScreen() {
           <Text style={s.checkLabel}>3. Autostart after reboot (manual on Xiaomi / Infinix)</Text>
           <Btn title="Open autostart settings" kind="link" onPress={() => MotorAlarms.openAutostartSettings()} />
           <Text style={s.meta}>
-            On Redmi: Security app → Permissions → Autostart → enable Ghar. On Infinix/HiOS the
-            toggle lives in Phone Master or Settings → Apps → Ghar → autostart.
+            On Redmi: Security app → Permissions → Autostart → enable Auto Work. On Infinix/HiOS the
+            toggle lives in Phone Master or Settings → Apps → Auto Work → autostart.
           </Text>
         </View>
         <View style={{ gap: 6 }}>
@@ -137,7 +137,7 @@ export function FamilyScreen() {
         <Btn title="Ring a test alarm in 1 minute" onPress={testAlarm} loading={busy} />
       </Card>
 
-      <Text style={s.version}>Ghar v{Constants.expoConfig?.version ?? '?'} · household {household?.id?.slice(0, 8) ?? '—'}</Text>
+      <Text style={s.version}>Auto Work v{Constants.expoConfig?.version ?? '?'} · household {household?.id?.slice(0, 8) ?? '—'}</Text>
     </ScrollView>
     </Screen>
   );

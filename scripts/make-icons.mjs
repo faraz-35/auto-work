@@ -1,6 +1,7 @@
 // Generates the app's PNG assets with a minimal hand-rolled PNG encoder
-// (RGBA, zlib via node:crypto — no image deps): a water-drop glyph used for
-// the launcher icon, adaptive layers, and the alpha-only status-bar icon.
+// (RGBA, zlib via node:zlib — no image deps): the Auto Work mark (a house
+// outline with a checkmark inside, bone on near-black) for the launcher icon,
+// adaptive layers, and the alpha-only status-bar icon.
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { deflateSync } from 'node:zlib';
 import { dirname } from 'node:path';
@@ -39,47 +40,92 @@ const encodePng = (w, h, rgba) => {
   ]);
 };
 
-// signed-distance-ish coverage for a water drop: circle + tapered triangle on top
-const dropCoverage = (px, py, size) => {
-  const x = px / size - 0.5;
-  const y = py / size - 0.5;              // 0 top .. 1 bottom
-  const cy = 0.16, r = 0.27;              // bulb circle
-  const inCircle = (x * x + (y - cy) * (y - cy)) <= r * r;
-  const tipY = -0.46;
-  const inStem = y > tipY && y < cy && Math.abs(x) <= (r * (y - tipY)) / (cy - tipY) * 0.92;
-  if (inCircle || inStem) {
-    const edge = inCircle ? r - Math.sqrt(x * x + (y - cy) * (y - cy)) : Math.abs(x);
-    return Math.min(1, edge * size * 0.25 + 0.5); // soften ~2px
+// The mark, in unit space (y down). Strokes: roof, walls, check.
+const ROOF = [[0.17, 0.45], [0.5, 0.17], [0.83, 0.45]];
+const WALLS = [[0.25, 0.42], [0.25, 0.82], [0.75, 0.82], [0.75, 0.42]];
+const CHECK = [[0.35, 0.62], [0.465, 0.735], [0.64, 0.53]];
+const STROKE = 0.03;  // half-width, 5.6% of canvas
+
+const dist = (px, py, ax, ay, bx, by) => {
+  const dx = bx - ax, dy = by - ay;
+  const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy)));
+  const x = ax + t * dx - px, y = ay + t * dy - py;
+  return Math.sqrt(x * x + y * y);
+};
+const polylineDist = (px, py, pts) => {
+  let d = Infinity;
+  for (let i = 0; i < pts.length - 1; i++) {
+    d = Math.min(d, dist(px, py, pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1]));
   }
-  return 0;
+  return d;
 };
 
-const ACCENT = [34, 211, 238];  // cyan-400, matches app theme
-const DARK = [10, 12, 16];      // zinc-950
+// Stroked-mark coverage: distance to the nearest stroke, softened ~2px.
+const markCoverage = (px, py, size, scale = 1) => {
+  const x = 0.5 + (px / size - 0.5) / scale;
+  const y = 0.5 + (py / size - 0.5) / scale;
+  const d = Math.min(polylineDist(x, y, ROOF), polylineDist(x, y, WALLS), polylineDist(x, y, CHECK));
+  return Math.max(0, Math.min(1, (STROKE - d) * size / 2 + 0.5));
+};
 
-const make = (size, mode) => {
+// Filled-mark coverage for tiny sizes: solid silhouette, check knocked out.
+const fillCoverage = (px, py, size, scale = 1) => {
+  const x = 0.5 + (px / size - 0.5) / scale;
+  const y = 0.5 + (py / size - 0.5) / scale;
+  const inRoof = y >= 0.17 && y <= 0.47 && Math.abs(x - 0.5) <= ((y - 0.17) / 0.30) * 0.36;
+  const inBody = x >= 0.24 && x <= 0.76 && y >= 0.44 && y <= 0.82;
+  if (!(inRoof || inBody)) return 0;
+  const checkDist = polylineDist(x, y, CHECK);
+  return checkDist > STROKE * 0.9 ? 1 : 0;
+};
+
+const BONE = [231, 229, 228];   // #e7e5e4, the app's accent
+const DARK = [9, 9, 11];        // #09090b, the app's background
+
+const make = (size, mode) => encodePng(size, size, rawPixels(size, mode));
+
+// raw RGBA pixels for one frame of the mark
+const rawPixels = (size, mode) => {
+  // adaptive foreground/monochrome must sit inside Android's safe zone
+  // (a 66/108 circle) or launchers clip the roof
+  const scale = mode === 'bg' ? 1 : 0.82;
   const rgba = Buffer.alloc(size * size * 4);
   for (let py = 0; py < size; py++) {
     for (let px = 0; px < size; px++) {
-      const a = dropCoverage(px, py, size);
+      const a = mode === 'alpha' ? fillCoverage(px, py, size, scale) : markCoverage(px, py, size, scale);
       const i = (py * size + px) * 4;
       if (mode === 'alpha') {
         rgba[i] = 255; rgba[i + 1] = 255; rgba[i + 2] = 255;
         rgba[i + 3] = Math.round(a * 255);
       } else if (mode === 'fg') {
-        rgba[i] = ACCENT[0]; rgba[i + 1] = ACCENT[1]; rgba[i + 2] = ACCENT[2];
+        rgba[i] = BONE[0]; rgba[i + 1] = BONE[1]; rgba[i + 2] = BONE[2];
         rgba[i + 3] = Math.round(a * 255);
       } else {
         rgba[i] = DARK[0]; rgba[i + 1] = DARK[1]; rgba[i + 2] = DARK[2]; rgba[i + 3] = 255;
       }
     }
   }
-  return encodePng(size, size, rgba);
+  return rgba;
+};
+
+// the legacy launcher icon: mark composited onto the background, at pixel level
+const legacyIcon = (size) => {
+  const fg = rawPixels(size, 'fg');
+  const bg = rawPixels(size, 'bg');
+  for (let i = 0; i < fg.length; i += 4) {
+    const a = fg[i + 3] / 255;
+    for (let c = 0; c < 3; c++) {
+      fg[i + c] = Math.round(fg[i + c] * a + bg[i + c] * (1 - a));
+    }
+    fg[i + 3] = 255;
+  }
+  return encodePng(size, size, fg);
 };
 
 const out = (p, buf) => { mkdirSync(dirname(p), { recursive: true }); writeFileSync(p, buf); console.log(p); };
-out('app/assets/icon.png', make(1024, 'bg'));
+out('app/assets/icon.png', legacyIcon(1024));
 out('app/assets/android-icon-foreground.png', make(1024, 'fg'));
 out('app/assets/android-icon-background.png', make(1024, 'bg'));
 out('app/assets/android-icon-monochrome.png', make(1024, 'fg'));
+out('app/assets/favicon.png', legacyIcon(48));
 out('packages/motor-alarms/android/src/main/res/drawable/ic_motor_stat.png', make(96, 'alpha'));
