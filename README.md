@@ -30,6 +30,12 @@ anyone buys goes in the ledger. No login: a new phone types a name and it's in.
   alarms.
 - **The ledger** is the ported home-invoice: insert purchases, monthly
   per-member totals, two-tap delete. Bills-to-pay are chores, not ledger rows.
+- **In-app updates.** On every app open, Ghar asks GitHub for the latest
+  release; when it's newer, a bottom sheet offers the update, downloads the
+  APK with a progress bar, and Android's installer takes over. First update
+  on a phone also asks once for "allow from this source". Publishing remains
+  `scripts/release.sh vX.Y.Z` — the updater reads the release tag and its
+  `.apk` asset.
 - **Invisible auth**: anonymous sign-ins are disabled on the project, so each
   phone claims one of 12 pre-provisioned pool users
   (`claim_device_account()` RPC) and signs in with a password grant. The user

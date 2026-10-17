@@ -3,6 +3,7 @@ import {
 } from '../rotation';
 import { alarmsToNativeJson, computeDesiredAlarms, deadlineMs, formatRemaining } from '../alarms';
 import { formatPKR, groupByMonth, memberTotals, monthKey } from '../ledger';
+import { isNewer, parseVersion } from '../version';
 import type { Chore, ChoreEvent, Member } from '../../types';
 
 const member = (id: string, order: number, active = true): Member => ({
@@ -272,5 +273,28 @@ describe('human dates', () => {
       .toBe('every 3 days at 7:15 AM');
     expect(scheduleLabel({ due_at: null, repeat_days: null, repeat_monthly_day: 25, time_of_day: '09:00:00' }))
       .toBe('monthly on the 25 at 9:00 AM');
+  });
+});
+
+describe('version compare (updater)', () => {
+  test('parseVersion accepts tag and bare forms', () => {
+    expect(parseVersion('v2.0.4')).toEqual([2, 0, 4]);
+    expect(parseVersion('2.10.0')).toEqual([2, 10, 0]);
+    expect(parseVersion('release-2.0.4')).toBeNull();
+    expect(parseVersion('2.0')).toBeNull();
+  });
+
+  test('isNewer compares major/minor/patch, never the string', () => {
+    expect(isNewer('v2.0.5', '2.0.4')).toBe(true);
+    expect(isNewer('v2.1.0', '2.0.9')).toBe(true);
+    expect(isNewer('v3.0.0', 'v2.9.9')).toBe(true);
+    expect(isNewer('v2.0.4', '2.0.4')).toBe(false);
+    expect(isNewer('v2.0.3', '2.0.4')).toBe(false);
+    expect(isNewer('2.10.0', '2.9.0')).toBe(true);   // 10 > 9, not "10" < "9"
+  });
+
+  test('isNewer rejects malformed input as not-newer', () => {
+    expect(isNewer('latest', '2.0.4')).toBe(false);
+    expect(isNewer('v2.0.5', 'unknown')).toBe(false);
   });
 });

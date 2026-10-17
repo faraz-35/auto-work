@@ -9,6 +9,7 @@ import { TodayScreen } from './screens/TodayScreen';
 import { ChoresScreen } from './screens/ChoresScreen';
 import { LedgerScreen } from './screens/LedgerScreen';
 import { FamilyScreen } from './screens/FamilyScreen';
+import { UpdatePrompt } from './update/UpdatePrompt';
 
 const Tabs = createBottomTabNavigator();
 
@@ -92,6 +93,7 @@ export default function App() {
       <NavigationContainer theme={navTheme}>
         <StatusBar style="light" />
         <Root />
+        <UpdatePrompt />
       </NavigationContainer>
     </AppProvider>
   );
