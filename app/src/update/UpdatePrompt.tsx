@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { C } from '../theme';
+import { StyleSheet, Text, View } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { C, T } from '../theme';
 import { Btn } from '../components/ui';
+import { Sheet } from '../components/Sheet';
 import { checkForUpdate, downloadAndInstall, type Release } from './updater';
 
 type Stage = 'available' | 'downloading' | 'failed';
@@ -32,7 +33,6 @@ export function UpdatePrompt() {
 }
 
 function UpdateSheet({ release, onClose }: { release: Release; onClose: () => void }) {
-  const insets = useSafeAreaInsets();
   const [stage, setStage] = useState<Stage>('available');
   const [progress, setProgress] = useState<number | null>(null);
   const [error, setError] = useState('');
@@ -53,56 +53,39 @@ function UpdateSheet({ release, onClose }: { release: Release; onClose: () => vo
   const pct = progress != null ? Math.round(progress * 100) : null;
 
   return (
-    <Modal visible animationType="slide" transparent onRequestClose={onClose}>
-      <Pressable style={s.backdrop} onPress={onClose}>
-        <Pressable style={[s.sheet, { paddingBottom: 16 + insets.bottom }]} onPress={() => undefined}>
-          <Text style={s.title}>Update Auto Work</Text>
-          <Text style={s.subtitle}>
-            {stage === 'downloading'
-              ? pct != null ? `Downloading Auto Work ${name}… ${pct}%` : `Downloading Auto Work ${name}…`
-              : `Auto Work ${name} is out. It downloads about ${mb} MB, then Android installs it.`}
-          </Text>
-          {stage === 'downloading' && (
-            <View style={s.track}>
-              <View
-                style={[
-                  s.fill,
-                  { width: `${pct ?? 100}%`, opacity: pct != null ? 1 : 0.35 },
-                ]}
-              />
-            </View>
-          )}
-          {stage === 'failed' && <Text style={s.error}>Download failed: {error}</Text>}
-          {stage === 'downloading' ? (
-            <Text style={s.hint}>You can keep using Auto Work; Android asks when it's ready.</Text>
-          ) : (
-            <>
-              <Btn title={stage === 'failed' ? 'Try again' : 'Update now'} onPress={() => void start()} />
-              <Btn title="Not now" kind="ghost" onPress={onClose} />
-            </>
-          )}
-        </Pressable>
-      </Pressable>
-    </Modal>
+    <Sheet visible onClose={onClose} title="Update Auto Work">
+      <Text style={s.subtitle}>
+        {stage === 'downloading'
+          ? pct != null ? `Downloading Auto Work ${name}… ${pct}%` : `Downloading Auto Work ${name}…`
+          : `Auto Work ${name} is out. It downloads about ${mb} MB, then Android installs it.`}
+      </Text>
+      {stage === 'downloading' && (
+        <View style={s.track}>
+          <View
+            style={[
+              s.fill,
+              { width: `${pct ?? 100}%`, opacity: pct != null ? 1 : 0.35 },
+            ]}
+          />
+        </View>
+      )}
+      {stage === 'failed' && <Text style={s.error}>Download failed: {error}</Text>}
+      {stage === 'downloading' ? (
+        <Text style={s.hint}>You can keep using Auto Work; Android asks when it's ready.</Text>
+      ) : (
+        <>
+          <Btn title={stage === 'failed' ? 'Try again' : 'Update now'} onPress={() => void start()} />
+          <Btn title="Not now" kind="ghost" onPress={onClose} />
+        </>
+      )}
+    </Sheet>
   );
 }
 
 const s = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-  sheet: {
-    backgroundColor: C.card,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    borderWidth: 1,
-    borderColor: C.border,
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    gap: 12,
-  },
-  title: { color: C.text, fontSize: 18, fontWeight: '700' },
-  subtitle: { color: C.dim, fontSize: 14, marginTop: -6 },
+  subtitle: { color: C.dim, fontSize: T.body, marginTop: -6 },
   track: { height: 6, borderRadius: 3, backgroundColor: C.border, overflow: 'hidden' },
   fill: { height: 6, borderRadius: 3, backgroundColor: C.accent },
-  error: { color: C.bad, fontSize: 13 },
-  hint: { color: C.dim, fontSize: 13, textAlign: 'center' },
+  error: { color: C.bad, fontSize: T.meta },
+  hint: { color: C.dim, fontSize: T.meta, textAlign: 'center' },
 });

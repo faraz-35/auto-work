@@ -6,11 +6,12 @@ import {
   StyleProp,
   Text,
   TextInput,
+  TextStyle,
   View,
   ViewStyle,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { C, R } from '../theme';
+import { C, R, S, T, W } from '../theme';
 
 export function Card({ children, style }: { children: React.ReactNode; style?: StyleProp<ViewStyle> }) {
   return <View style={[styles.card, style]}>{children}</View>;
@@ -34,6 +35,7 @@ export function Btn({ title, onPress, kind = 'primary', compact, loading, disabl
   const fg = kind === 'primary' ? C.bg : kind === 'danger' ? C.bad : kind === 'link' ? C.dim : C.text;
   return (
     <Pressable
+      accessibilityRole="button"
       onPress={onPress}
       disabled={disabled || loading}
       style={({ pressed }) => [
@@ -46,6 +48,24 @@ export function Btn({ title, onPress, kind = 'primary', compact, loading, disabl
       {loading ? <ActivityIndicator color={fg} size="small" /> : (
         <Text style={[styles.btnText, kind === 'link' && styles.btnLinkText, { color: fg }]}>{title}</Text>
       )}
+    </Pressable>
+  );
+}
+
+/** Selectable chip for the sheet forms (who, when, deadline). */
+export function Chip({ label, active, onPress }: { label: string; active?: boolean; onPress: () => void }) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ selected: !!active }}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.chip,
+        active && { borderColor: C.accent, backgroundColor: C.accentBg },
+        pressed && !active && { backgroundColor: C.card },
+      ]}
+    >
+      <Text style={[styles.chipText, active && { color: C.accent, fontWeight: W.bold }]}>{label}</Text>
     </Pressable>
   );
 }
@@ -79,10 +99,10 @@ export function Pill({ text, tone }: { text: string; tone: 'good' | 'warn' | 'ba
 }
 
 export function Field({
-  label, value, onChangeText, placeholder, keyboardType = 'default',
+  label, value, onChangeText, placeholder, keyboardType = 'default', autoFocus,
 }: {
   label: string; value: string; onChangeText: (s: string) => void;
-  placeholder?: string; keyboardType?: 'default' | 'number-pad';
+  placeholder?: string; keyboardType?: 'default' | 'number-pad'; autoFocus?: boolean;
 }) {
   return (
     <View style={{ gap: 6 }}>
@@ -96,6 +116,7 @@ export function Field({
         keyboardType={keyboardType}
         autoCapitalize="none"
         autoCorrect={false}
+        autoFocus={autoFocus}
       />
     </View>
   );
@@ -105,19 +126,29 @@ export function Row({ children, style }: { children: React.ReactNode; style?: Vi
   return <View style={[{ flexDirection: 'row', alignItems: 'center', gap: 10 }, style]}>{children}</View>;
 }
 
+/** Shared text roles — use these instead of raw fontSize/weight pairs. */
+export const roles = {
+  tiny: { color: C.dim, fontSize: T.tiny } as TextStyle,
+  meta: { color: C.dim, fontSize: T.meta } as TextStyle,
+  body: { color: C.dim, fontSize: T.body } as TextStyle,
+  item: { color: C.text, fontSize: T.item, fontWeight: W.medium } as TextStyle,
+  amount: { color: C.text, fontSize: T.item, fontVariant: ['tabular-nums'] } as TextStyle,
+  title: { color: C.text, fontSize: T.title, fontWeight: W.semibold, flex: 1 } as TextStyle,
+};
+
 const styles = StyleSheet.create({
   card: {
     backgroundColor: C.cardRaised,
     borderRadius: R.card,
     borderWidth: 1,
     borderColor: 'transparent',
-    padding: 18,
-    gap: 10,
+    padding: S.card,
+    gap: S.rowGap,
   },
   sectionTitle: {
     color: C.dim,
-    fontSize: 13,
-    fontWeight: '600',
+    fontSize: T.meta,
+    fontWeight: W.semibold,
     letterSpacing: 0.4,
     textTransform: 'uppercase',
     marginBottom: -4,
@@ -130,8 +161,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   btnLink: { borderWidth: 0, paddingVertical: 8, alignSelf: 'flex-start' },
-  btnLinkText: { fontSize: 14, fontWeight: '500' },
-  btnCompact: { paddingVertical: 8, paddingHorizontal: 18, alignSelf: 'flex-end', borderRadius: 999 },
+  btnLinkText: { fontSize: T.body, fontWeight: W.medium },
+  btnCompact: { paddingVertical: 8, paddingHorizontal: 18, alignSelf: 'flex-end', borderRadius: R.pill },
   fab: {
     position: 'absolute',
     right: 20,
@@ -143,22 +174,31 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  btnText: { fontSize: 15, fontWeight: '600' },
+  btnText: { fontSize: T.item, fontWeight: W.semibold },
+  chip: {
+    borderRadius: R.pill,
+    borderWidth: 1,
+    borderColor: 'transparent',
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    backgroundColor: C.cardRaised,
+  },
+  chipText: { color: C.text, fontSize: T.body },
   pill: {
     borderRadius: R.pill,
     paddingHorizontal: 10,
     paddingVertical: 3,
     alignSelf: 'flex-start',
   },
-  pillText: { fontSize: 12, fontWeight: '700', letterSpacing: 0.3 },
-  label: { color: C.dim, fontSize: 13, fontWeight: '500' },
+  pillText: { fontSize: T.tiny, fontWeight: W.bold, letterSpacing: 0.3 },
+  label: { color: C.dim, fontSize: T.meta, fontWeight: W.medium },
   input: {
     backgroundColor: 'rgba(0,0,0,0.35)',
-    borderRadius: 12,
+    borderRadius: R.input,
     borderWidth: 0,
     borderColor: C.border,
     color: C.text,
-    fontSize: 16,
+    fontSize: T.title,
     paddingHorizontal: 14,
     paddingVertical: 10,
   },

@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text } from 'react-native';
-import { C } from '../theme';
+import { C, S, T, W } from '../theme';
 import { Screen } from '../components/Screen';
 import { ActionSheet } from '../components/ActionSheet';
-import { Card, Fab, Overflow, Pill, Row, SectionTitle } from '../components/ui';
+import { Card, Fab, Overflow, Pill, Row, SectionTitle, roles } from '../components/ui';
 import { ChoreModal } from '../components/ChoreModal';
 import { useApp } from '../state/AppContext';
 import { formatDay, scheduleLabel } from '../logic/human';
@@ -89,7 +89,7 @@ export function ChoresScreen() {
           {activity.map((e) => (
             <Row key={e.id} style={{ justifyContent: 'space-between' }}>
               <Text style={s.activity}>
-                <Text style={{ color: C.text, fontWeight: '600' }}>{memberName(e.done_by ?? e.started_by)}</Text>
+                <Text style={{ color: C.text, fontWeight: W.semibold }}>{memberName(e.done_by ?? e.started_by)}</Text>
                 {' '}{e.status === 'skipped' ? 'skipped' : e.status === 'started' ? 'started' : 'did'}{' '}
                 {e.chore!.title}
               </Text>
@@ -138,9 +138,9 @@ function showErr(e: unknown) {
 
 const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: C.bg },
-  content: { padding: 20, gap: 16, paddingBottom: 96 },
-  title: { color: C.text, fontSize: 16, fontWeight: '600', flex: 1 },
-  meta: { color: C.dim, fontSize: 13 },
-  activity: { color: C.dim, fontSize: 14, flex: 1 },
-  date: { color: C.dim, fontSize: 12, fontVariant: ['tabular-nums'] },
+  content: { padding: S.screen, gap: S.gap, paddingBottom: 96 },
+  title: { ...roles.title },
+  meta: { ...roles.meta },
+  activity: { color: C.dim, fontSize: T.body, flex: 1 },
+  date: { color: C.dim, fontSize: T.tiny, fontVariant: ['tabular-nums'] },
 });

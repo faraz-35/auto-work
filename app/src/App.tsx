@@ -3,7 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { DarkTheme, NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
-import { C } from './theme';
+import { C, T, W } from './theme';
 import { AppProvider, useApp } from './state/AppContext';
 import { TodayScreen } from './screens/TodayScreen';
 import { ChoresScreen } from './screens/ChoresScreen';
@@ -101,8 +101,8 @@ export default function App() {
 
 const s = StyleSheet.create({
   center: { flex: 1, backgroundColor: C.bg, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 32 },
-  bootText: { color: C.dim, fontSize: 14 },
-  errorTitle: { color: C.bad, fontSize: 20, fontWeight: '700' },
-  errorBody: { color: C.dim, fontSize: 14, textAlign: 'center' },
-  press: { color: C.accent, fontSize: 16, fontWeight: '700', marginTop: 8 },
+  bootText: { color: C.dim, fontSize: T.body },
+  errorTitle: { color: C.bad, fontSize: T.hero, fontWeight: W.bold },
+  errorBody: { color: C.dim, fontSize: T.body, textAlign: 'center' },
+  press: { color: C.accent, fontSize: T.title, fontWeight: W.bold, marginTop: 8 },
 });

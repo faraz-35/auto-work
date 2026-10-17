@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Alert, AppState, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Constants from 'expo-constants';
 import MotorAlarms from '../alarm/native';
-import { C } from '../theme';
+import { C, S, T, W } from '../theme';
 import { Screen } from '../components/Screen';
 import { Btn, Card, Field, Pill, Row, SectionTitle } from '../components/ui';
 import { useApp } from '../state/AppContext';
@@ -161,9 +161,9 @@ function CheckRow({
 
 const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: C.bg },
-  content: { padding: 20, gap: 16, paddingBottom: 96 },
-  meta: { color: C.dim, fontSize: 13 },
-  member: { color: C.text, fontSize: 16, fontWeight: '500' },
-  checkLabel: { color: C.text, fontSize: 15 },
-  version: { color: C.dim, fontSize: 12, textAlign: 'center', marginTop: 8 },
+  content: { padding: S.screen, gap: S.gap, paddingBottom: 96 },
+  meta: { color: C.dim, fontSize: T.meta },
+  member: { color: C.text, fontSize: T.title, fontWeight: W.medium },
+  checkLabel: { color: C.text, fontSize: T.item },
+  version: { color: C.dim, fontSize: T.tiny, textAlign: 'center', marginTop: 8 },
 });

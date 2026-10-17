@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { C } from '../theme';
+import { Alert, ScrollView, StyleSheet, Text } from 'react-native';
+import { C, S, T, W } from '../theme';
 import { Screen } from '../components/Screen';
-import { Btn, Fab, Card, Pill, Row, SectionTitle } from '../components/ui';
+import { Btn, Fab, Card, Pill, Row, SectionTitle, roles } from '../components/ui';
+import { Sheet } from '../components/Sheet';
 import { ChoreModal } from '../components/ChoreModal';
 import { useApp } from '../state/AppContext';
 import { formatRemaining } from '../logic/alarms';
@@ -221,7 +221,6 @@ function SwapModal({
   onSubmit: (toMemberId: string | null) => void;
 }) {
   const { members, me, swaps, today } = useApp();
-  const insets = useSafeAreaInsets();
   if (!chore) return null;
   const alreadyRequested = swaps.some(
     (s) => s.status === 'pending' && s.from_member_id === me?.id && s.chore_id === chore.id && s.on_date === today
@@ -229,45 +228,33 @@ function SwapModal({
   const others = members.filter((m) => m.active && m.id !== me?.id);
 
   return (
-    <Modal visible animationType="slide" transparent onRequestClose={onClose}>
-      <View style={s.modalBackdrop}>
-        <View style={[s.modalSheet, { paddingBottom: 20 + insets.bottom }]}>
-          <Text style={s.sheetTitle}>Hand over "{chore.title}"</Text>
-          {alreadyRequested ? (
-            <Text style={s.meta}>Your request is already out — ask a sibling directly if it's urgent.</Text>
-          ) : (
-            <>
-              <Text style={s.meta}>
-                Whoever accepts covers it, and repays you by taking your next turn of this chore.
-              </Text>
-              <Btn title="Ask anyone in the house" onPress={() => onSubmit(null)} />
-              {others.map((m) => (
-                <Btn key={m.id} title={`Ask ${m.name}`} kind="link" onPress={() => onSubmit(m.id)} />
-              ))}
-            </>
-          )}
-          <Btn title="Close" kind="link" onPress={onClose} />
-        </View>
-      </View>
-    </Modal>
+    <Sheet visible onClose={onClose} title={`Hand over "${chore.title}"`}>
+      {alreadyRequested ? (
+        <Text style={roles.meta}>Your request is already out — ask a sibling directly if it's urgent.</Text>
+      ) : (
+        <>
+          <Text style={roles.meta}>
+            Whoever accepts covers it, and repays you by taking your next turn of this chore.
+          </Text>
+          <Btn title="Ask anyone in the house" onPress={() => onSubmit(null)} />
+          {others.map((m) => (
+            <Btn key={m.id} title={`Ask ${m.name}`} kind="link" onPress={() => onSubmit(m.id)} />
+          ))}
+        </>
+      )}
+      <Btn title="Close" kind="link" onPress={onClose} />
+    </Sheet>
   );
 }
 
 const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: C.bg },
-  content: { padding: 20, gap: 16, paddingBottom: 96 },
-  heroState: { fontSize: 20, fontWeight: '700', letterSpacing: -0.3 },
-  heroMeta: { color: C.dim, fontSize: 14, marginTop: 4 },
-  cardTitle: { color: C.text, fontSize: 16, fontWeight: '600', flex: 1 },
-  countdown: { fontSize: 26, fontWeight: '800', fontVariant: ['tabular-nums'] },
-  amount: { color: C.text, fontSize: 14, fontVariant: ['tabular-nums'] },
-  meta: { color: C.dim, fontSize: 13 },
-  stale: { color: C.warn, fontSize: 13 },
-  or: { color: C.dim, fontSize: 13, textAlign: 'center' },
-  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-  modalSheet: {
-    backgroundColor: C.card, borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    borderWidth: 1, borderColor: C.border, padding: 20, gap: 12,
-  },
-  sheetTitle: { color: C.text, fontSize: 20, fontWeight: '700' },
+  content: { padding: S.screen, gap: S.gap, paddingBottom: 96 },
+  heroState: { fontSize: T.hero, fontWeight: W.bold, letterSpacing: -0.3 },
+  heroMeta: { color: C.dim, fontSize: T.body, marginTop: 4 },
+  cardTitle: { ...roles.title },
+  countdown: { fontSize: T.display, fontWeight: W.heavy, fontVariant: ['tabular-nums'] },
+  amount: { ...roles.amount },
+  meta: { ...roles.meta },
+  stale: { color: C.warn, fontSize: T.meta },
 });

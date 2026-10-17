@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { C } from '../theme';
+import { C, S, T, W } from '../theme';
 import { Screen } from '../components/Screen';
 import { ActionSheet } from '../components/ActionSheet';
-import { Btn, Card, Field, Overflow, Row, SectionTitle } from '../components/ui';
+import { Btn, Card, Field, Overflow, Row, SectionTitle, roles } from '../components/ui';
 import { useApp } from '../state/AppContext';
 import { formatPKR, groupByMonth, memberTotals, monthLabel } from '../logic/ledger';
 import type { Purchase } from '../types';
@@ -105,9 +105,9 @@ export function LedgerScreen() {
 
 const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: C.bg },
-  content: { padding: 20, gap: 12, paddingBottom: 96 },
-  total: { color: C.accent, fontSize: 16, fontWeight: '800', fontVariant: ['tabular-nums'] },
-  item: { color: C.text, fontSize: 15, fontWeight: '500' },
-  amount: { color: C.text, fontSize: 15, fontVariant: ['tabular-nums'] },
-  meta: { color: C.dim, fontSize: 12 },
+  content: { padding: S.screen, gap: S.gapTight, paddingBottom: 96 },
+  total: { color: C.accent, fontSize: T.title, fontWeight: W.heavy, fontVariant: ['tabular-nums'] },
+  item: { ...roles.item },
+  amount: { ...roles.amount },
+  meta: { ...roles.meta },
 });
