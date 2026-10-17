@@ -128,4 +128,5 @@ out('app/assets/android-icon-foreground.png', make(1024, 'fg'));
 out('app/assets/android-icon-background.png', make(1024, 'bg'));
 out('app/assets/android-icon-monochrome.png', make(1024, 'fg'));
 out('app/assets/favicon.png', legacyIcon(48));
+out('app/assets/splash-icon.png', make(1024, 'fg'));
 out('packages/motor-alarms/android/src/main/res/drawable/ic_motor_stat.png', make(96, 'alpha'));

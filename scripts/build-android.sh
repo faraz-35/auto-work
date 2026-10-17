@@ -1,12 +1,16 @@
 #!/bin/zsh
-# Builds the signed release APK. Assumes expo prebuild already ran (android/ exists).
+# Builds the signed release APK. android/ is a gitignored build artifact —
+# regenerated from app.json every run, so icons, splash, name and the
+# version stamp can never drift from the source of truth.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 export ANDROID_HOME="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
+
+(cd app && npx expo prebuild -p android --clean --no-install)
 echo "sdk.dir=$ANDROID_HOME" > app/android/local.properties
 
-[ -f keystore.env ] && source keystore.env
+[ -f keystore.env ] && set -a && source keystore.env && set +a
 : "${MOTOR_KS_ALIAS:?set MOTOR_KS_ALIAS in keystore.env}"
 : "${MOTOR_KS_PASS:?set MOTOR_KS_PASS in keystore.env}"
 
@@ -18,14 +22,15 @@ const fs = require('fs');
 const path = 'app/android/app/build.gradle';
 let src = fs.readFileSync(path, 'utf8');
 if (!src.includes('motor.keystore')) {
+  const pass = process.env.MOTOR_KS_PASS, alias = process.env.MOTOR_KS_ALIAS;
   src = src.replace(
     /signingConfigs \{/,
     `signingConfigs {
         release {
             storeFile file('../../../motor.keystore')
-            storePassword "${MOTOR_KS_PASS}"
-            keyAlias "${MOTOR_KS_ALIAS}"
-            keyPassword "${MOTOR_KS_PASS}"
+            storePassword "${pass}"
+            keyAlias "${alias}"
+            keyPassword "${pass}"
         }`
   );
 }
