@@ -43,12 +43,12 @@
   <img src="icon.png" alt="Auto Work">
   <h1>Auto Work</h1>
   <p class="lead">Chores for the whole house. Install it, open it — you're in.</p>
-  <a class="btn" id="download" href="https://github.com/faraz-35/motor/releases/latest">Download for Android</a>
+  <a class="btn" id="download" href="https://github.com/faraz-35/auto-work/releases/latest">Download for Android</a>
   <div class="meta" id="meta">checking the latest version…</div>
   <p class="note">Updates arrive inside the app. On Redmi or Infinix, allow autostart and turn off battery optimization so alarms always ring.</p>
 </main>
 <script>
-  fetch('https://api.github.com/repos/faraz-35/motor/releases/latest')
+  fetch('https://api.github.com/repos/faraz-35/auto-work/releases/latest')
     .then((r) => r.json())
     .then((rel) => {
       const apk = (rel.assets || []).find((a) => a.name.endsWith('.apk'));
