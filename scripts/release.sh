@@ -14,4 +14,14 @@ gh release create "$TAG" "$STAGED" \
   --repo faraz-35/auto-work \
   --title "Auto Work ${TAG}" \
   --notes "Download Auto-Work-${TAG}.apk on your phone and install it. The app joins your home by itself. On Redmi/Infinix, let it autostart and turn off battery optimization (Security app → Permissions → Autostart; Battery → No restrictions) so alarms always ring."
-echo "released ${TAG}"
+
+# refresh the download-site copy so the page always serves the new APK same-origin
+git worktree remove --force /tmp/aw-pages 2>/dev/null || true
+git worktree prune
+git worktree add /tmp/aw-pages origin/gh-pages
+cp "$STAGED" /tmp/aw-pages/Auto-Work.apk
+git -C /tmp/aw-pages add -A
+git -C /tmp/aw-pages commit -m "pages: Auto-Work.apk -> ${TAG}"
+git -C /tmp/aw-pages push origin HEAD:gh-pages
+git worktree remove --force /tmp/aw-pages
+echo "released ${TAG} — download site updated"
