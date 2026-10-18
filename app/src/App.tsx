@@ -4,7 +4,6 @@ import { StatusBar } from 'expo-status-bar';
 import { DarkTheme, NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
-import { NavigationBar } from 'expo-navigation-bar';
 import { C, T, W, getScheme, setScheme, themeEpoch } from './theme';
 import { ThemeEpoch, useStyles } from './components/useStyles';
 import { AppProvider, useApp } from './state/AppContext';
@@ -120,8 +119,6 @@ export default function App() {
       <ThemeEpoch.Provider value={epoch}>
         <NavigationContainer theme={navTheme}>
           <StatusBar style={getScheme() === 'dark' ? 'light' : 'dark'} />
-          {/* no standing three-button bar on Android — swipe reveals it transiently */}
-          <NavigationBar hidden />
           <Root />
           <UpdatePrompt />
         </NavigationContainer>
