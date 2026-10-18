@@ -1,10 +1,13 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { C, T, W } from '../theme';
+import { useStyles } from './useStyles';
 import { Sheet } from './Sheet';
 
 export type SheetAction = {
   label: string;
   destructive?: boolean;
+  active?: boolean;      // marks the current choice with a check
   onPress: () => void;
 };
 
@@ -21,34 +24,38 @@ export function ActionSheet({
   actions: SheetAction[];
   cancelLabel?: string;
 }) {
+  const styles = useStyles(makeStyles);
   return (
     <Sheet visible={visible} onClose={onClose} title={title} subtitle={subtitle}>
-      <View style={s.group}>
+      <View style={styles.group}>
         {actions.map((a) => (
           <Pressable
             key={a.label}
             accessibilityRole="button"
+            accessibilityState={{ selected: !!a.active }}
             onPress={() => { onClose(); a.onPress(); }}
-            style={({ pressed }) => [s.item, pressed && s.itemPressed]}
+            style={({ pressed }) => [styles.item, styles.itemRow, pressed && styles.itemPressed]}
           >
-            <Text style={[s.itemText, a.destructive && { color: C.bad }]}>{a.label}</Text>
+            <Text style={[styles.itemText, a.destructive && { color: C.bad }]}>{a.label}</Text>
+            {a.active && <Ionicons name="checkmark" size={18} color={C.text} />}
           </Pressable>
         ))}
       </View>
       <Pressable
         accessibilityRole="button"
         onPress={onClose}
-        style={({ pressed }) => [s.item, s.cancel, pressed && s.itemPressed]}
+        style={({ pressed }) => [styles.item, styles.cancel, pressed && styles.itemPressed]}
       >
-        <Text style={s.cancelText}>{cancelLabel}</Text>
+        <Text style={styles.cancelText}>{cancelLabel}</Text>
       </Pressable>
     </Sheet>
   );
 }
 
-const s = StyleSheet.create({
+const makeStyles = () => StyleSheet.create({
   group: { borderRadius: 14, backgroundColor: C.cardRaised, overflow: 'hidden' },
   item: { paddingVertical: 15, paddingHorizontal: 16 },
+  itemRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   itemPressed: { backgroundColor: C.border },
   itemText: { color: C.text, fontSize: T.body },
   cancel: { alignItems: 'center', borderRadius: 14, backgroundColor: C.cardRaised },

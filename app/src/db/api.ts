@@ -11,7 +11,7 @@ export type HouseholdData = {
   swaps: Swap[];
 };
 
-const WINDOW_PAST = 35;
+const WINDOW_PAST = 92;   // covers the 90-day analytics range
 const WINDOW_FUTURE = 35;
 
 export async function fetchHouseholdData(householdId: string): Promise<HouseholdData> {
@@ -20,7 +20,8 @@ export async function fetchHouseholdData(householdId: string): Promise<Household
   const [household, members, chores, events, assignments, swaps] = await Promise.all([
     db.from('households').select('*').eq('id', householdId).single(),
     db.from('members').select('*').eq('household_id', householdId).order('rotation_order'),
-    db.from('chores').select('*').eq('household_id', householdId).eq('active', true),
+    // all chores, active or not, so history stays attributable
+    db.from('chores').select('*').eq('household_id', householdId),
     db.from('chore_events').select('*').eq('household_id', householdId)
       .gte('on_date', from).lte('on_date', to),
     db.from('chore_assignments').select('chore_id, on_date, member_id')
@@ -136,20 +137,6 @@ export async function acceptSwap(requestId: string): Promise<void> {
 
 export async function cancelSwap(requestId: string): Promise<void> {
   const { error } = await db.rpc('cancel_swap', { p_request_id: requestId });
-  if (error) throw error;
-}
-
-// ---- household + membership ----
-
-export async function saveHouseholdSettings(
-  householdId: string, patch: Partial<Pick<Household, 'snooze_minutes'>>
-): Promise<void> {
-  const { error } = await db.from('households').update(patch).eq('id', householdId);
-  if (error) throw error;
-}
-
-export async function renameMember(memberId: string, name: string): Promise<void> {
-  const { error } = await db.from('members').update({ name }).eq('id', memberId);
   if (error) throw error;
 }
 

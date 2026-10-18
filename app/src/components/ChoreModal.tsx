@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Alert, StyleSheet, TextInput, View } from 'react-native';
 import { C, T, W } from '../theme';
+import { useStyles } from './useStyles';
 import { Btn, Chip, IconField, Row, Token } from './ui';
 import { Sheet } from './Sheet';
 import { WhenEditor, ordinal, type Schedule } from './WhenEditor';
@@ -46,6 +47,7 @@ type Props = {
  *  chores ring a real alarm on the assignee's phone. */
 export function ChoreModal({ visible, onClose, editing = null }: Props) {
   const { members, me, actions } = useApp();
+  const styles = useStyles(makeStyles);
 
   const [title, setTitle] = useState('');
   const [note, setNote] = useState('');
@@ -186,7 +188,7 @@ export function ChoreModal({ visible, onClose, editing = null }: Props) {
   return (
     <Sheet visible={visible} onClose={onClose} scroll>
       <TextInput
-        style={s.titleInput}
+        style={styles.titleInput}
         value={title}
         onChangeText={setTitle}
         placeholder="What needs doing?"
@@ -259,7 +261,7 @@ export function ChoreModal({ visible, onClose, editing = null }: Props) {
   );
 }
 
-const s = StyleSheet.create({
+const makeStyles = () => StyleSheet.create({
   titleInput: {
     color: C.text,
     fontSize: T.heading,

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { C, S, T, W } from '../theme';
+import { useStyles } from '../components/useStyles';
 import { Screen } from '../components/Screen';
 import { ActionSheet } from '../components/ActionSheet';
 import { Btn, Card, Field, Overflow, Row, SectionTitle, roles } from '../components/ui';
@@ -16,6 +17,7 @@ export function LedgerScreen() {
   const [amount, setAmount] = useState('');
   const [busy, setBusy] = useState(false);
   const [deleting, setDeleting] = useState<Purchase | null>(null);
+  const styles = useStyles(makeStyles);
 
   useEffect(() => { void actions.loadPurchases(); }, []);
 
@@ -37,7 +39,7 @@ export function LedgerScreen() {
 
   return (
     <Screen>
-      <ScrollView style={s.screen} contentContainerStyle={s.content}>
+      <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
         <SectionTitle>Add a purchase</SectionTitle>
         <Card style={{ gap: 12 }}>
           <Field label="What did you buy" value={item} onChangeText={setItem} placeholder="Groceries" />
@@ -45,7 +47,7 @@ export function LedgerScreen() {
           <Btn title="Add" compact onPress={add} loading={busy} disabled={!item.trim() || !(Number(amount) > 0)} />
         </Card>
 
-        {purchases == null && <Text style={s.meta}>loading the ledger…</Text>}
+        {purchases == null && <Text style={styles.meta}>loading the ledger…</Text>}
 
         {[...byMonth.entries()].map(([month, list]) => {
           const total = list.reduce((n, p) => n + p.amount, 0);
@@ -54,18 +56,18 @@ export function LedgerScreen() {
             <View key={month} style={{ gap: 12 }}>
               <Row style={{ justifyContent: 'space-between', marginTop: 8 }}>
                 <SectionTitle>{monthLabel(month)}</SectionTitle>
-                <Text style={s.total}>{formatPKR(total)}</Text>
+                <Text style={styles.total}>{formatPKR(total)}</Text>
               </Row>
               <Card style={{ gap: 10 }}>
                 {list.map((p) => (
                   <Row key={p.id} style={{ justifyContent: 'space-between' }}>
                     <View style={{ flex: 1 }}>
-                      <Text style={s.item}>{p.item}</Text>
-                      <Text style={s.meta}>
+                      <Text style={styles.item}>{p.item}</Text>
+                      <Text style={styles.meta}>
                         {memberName(p.member_id)} · {p.created_at.slice(8, 10)} {monthLabel(p.created_at.slice(0, 7)).slice(0, 3)}
                       </Text>
                     </View>
-                    <Text style={s.amount}>{formatPKR(p.amount)}</Text>
+                    <Text style={styles.amount}>{formatPKR(p.amount)}</Text>
                     <Overflow label={`Options for ${p.item}`} onPress={() => setDeleting(p)} />
                   </Row>
                 ))}
@@ -73,8 +75,8 @@ export function LedgerScreen() {
               <Card style={{ gap: 6 }}>
                 {totals.map((t) => (
                   <Row key={t.member.id} style={{ justifyContent: 'space-between' }}>
-                    <Text style={s.meta}>{t.member.name} paid</Text>
-                    <Text style={s.amount}>{formatPKR(t.total)}</Text>
+                    <Text style={styles.meta}>{t.member.name} paid</Text>
+                    <Text style={styles.amount}>{formatPKR(t.total)}</Text>
                   </Row>
                 ))}
               </Card>
@@ -83,7 +85,7 @@ export function LedgerScreen() {
         })}
 
         {purchases != null && purchases.length === 0 && (
-          <Text style={s.meta}>Nothing bought yet — add the first purchase above.</Text>
+          <Text style={styles.meta}>Nothing bought yet — add the first purchase above.</Text>
         )}
 
         <ActionSheet
@@ -103,11 +105,11 @@ export function LedgerScreen() {
   );
 }
 
-const s = StyleSheet.create({
+const makeStyles = () => StyleSheet.create({
   screen: { flex: 1, backgroundColor: C.bg },
   content: { padding: S.screen, gap: S.gapTight, paddingBottom: 96 },
   total: { color: C.accent, fontSize: T.title, fontWeight: W.heavy, fontVariant: ['tabular-nums'] },
-  item: { ...roles.item },
-  amount: { ...roles.amount },
-  meta: { ...roles.meta },
+  item: { ...roles().item },
+  amount: { ...roles().amount },
+  meta: { ...roles().meta },
 });

@@ -13,5 +13,5 @@ cp "$APK" "$STAGED"
 gh release create "$TAG" "$STAGED" \
   --repo faraz-35/motor \
   --title "Auto Work ${TAG}" \
-  --notes "Download Auto-Work-${TAG}.apk on your phone and install it. Open it, type your name — that's the whole setup. Then Family tab → Make alarms reliable (allow notifications, exempt battery, autostart on Redmi/Infinix) and ring the test alarm once."
+  --notes "Download Auto-Work-${TAG}.apk on your phone and install it. The app joins your home by itself. On Redmi/Infinix, let it autostart and turn off battery optimization (Security app → Permissions → Autostart; Battery → No restrictions) so alarms always ring."
 echo "released ${TAG}"

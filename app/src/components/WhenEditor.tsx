@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { C, R, S, T, W } from '../theme';
+import { useStyles } from './useStyles';
 import { Stepper } from './ui';
 import { addDays, localDate } from '../logic/rotation';
 import { formatTime12 } from '../logic/human';
@@ -45,6 +46,7 @@ export function WhenEditor({ value, onChange }: {
   onChange: (s: Schedule) => void;
 }) {
   const set = (patch: Partial<Schedule>) => onChange({ ...value, ...patch });
+  const styles = useStyles(makeStyles);
   const stripRef = useRef<ScrollView>(null);
   const today = localDate();
   const days = Array.from({ length: 14 }, (_, i) => addDays(today, i));
@@ -61,24 +63,24 @@ export function WhenEditor({ value, onChange }: {
 
   return (
     <View style={{ gap: S.rowGap }}>
-      <View style={s.switch}>
+      <View style={styles.switch}>
         <Pressable
           accessibilityRole="button"
           accessibilityState={{ selected: value.kind === 'once' }}
           onPress={() => set({ kind: 'once' })}
-          style={({ pressed }) => [s.switchSide, value.kind === 'once' && s.switchOn, pressed && value.kind !== 'once' && s.sidePressed]}
+          style={({ pressed }) => [styles.switchSide, value.kind === 'once' && styles.switchOn, pressed && value.kind !== 'once' && styles.sidePressed]}
         >
-          <Text style={[s.switchIcon, value.kind === 'once' && s.switchIconOn]}>1</Text>
-          <Text style={[s.switchText, value.kind === 'once' && s.switchTextOn]}>Once</Text>
+          <Text style={[styles.switchIcon, value.kind === 'once' && styles.switchIconOn]}>1</Text>
+          <Text style={[styles.switchText, value.kind === 'once' && styles.switchTextOn]}>Once</Text>
         </Pressable>
         <Pressable
           accessibilityRole="button"
           accessibilityState={{ selected: value.kind === 'repeat' }}
           onPress={() => set({ kind: 'repeat' })}
-          style={({ pressed }) => [s.switchSide, value.kind === 'repeat' && s.switchOn, pressed && value.kind !== 'repeat' && s.sidePressed]}
+          style={({ pressed }) => [styles.switchSide, value.kind === 'repeat' && styles.switchOn, pressed && value.kind !== 'repeat' && styles.sidePressed]}
         >
           <Ionicons name="repeat" size={15} color={value.kind === 'repeat' ? C.accent : C.dim} />
-          <Text style={[s.switchText, value.kind === 'repeat' && s.switchTextOn]}>Repeat</Text>
+          <Text style={[styles.switchText, value.kind === 'repeat' && styles.switchTextOn]}>Repeat</Text>
         </Pressable>
       </View>
 
@@ -97,26 +99,26 @@ export function WhenEditor({ value, onChange }: {
                 accessibilityRole="button"
                 accessibilityState={{ selected: on }}
                 onPress={() => set({ date: d })}
-                style={[s.dayCell, on && s.cellOn]}
+                style={[styles.dayCell, on && styles.cellOn]}
               >
-                <Text style={[s.dayDow, on && s.cellTextOn]}>{DOW[dayOf(d)]}</Text>
-                <Text style={[s.dayNum, on && s.cellTextOn]}>{Number(d.slice(8, 10))}</Text>
+                <Text style={[styles.dayDow, on && styles.cellTextOn]}>{DOW[dayOf(d)]}</Text>
+                <Text style={[styles.dayNum, on && styles.cellTextOn]}>{Number(d.slice(8, 10))}</Text>
               </Pressable>
             );
           })}
         </ScrollView>
       ) : (
         <>
-          <View style={s.switch}>
+          <View style={styles.switch}>
             {(['daily', 'weekly', 'monthly'] as const).map((k) => (
               <Pressable
                 key={k}
                 accessibilityRole="button"
                 accessibilityState={{ selected: value.repeat === k }}
                 onPress={() => set({ repeat: k })}
-                style={({ pressed }) => [s.switchSide, s.kindSide, value.repeat === k && s.switchOn, pressed && value.repeat !== k && s.sidePressed]}
+                style={({ pressed }) => [styles.switchSide, styles.kindSide, value.repeat === k && styles.switchOn, pressed && value.repeat !== k && styles.sidePressed]}
               >
-                <Text style={[s.switchText, value.repeat === k && s.switchTextOn]}>{k[0].toUpperCase() + k.slice(1)}</Text>
+                <Text style={[styles.switchText, value.repeat === k && styles.switchTextOn]}>{k[0].toUpperCase() + k.slice(1)}</Text>
               </Pressable>
             ))}
           </View>
@@ -130,7 +132,7 @@ export function WhenEditor({ value, onChange }: {
             />
           )}
           {value.repeat === 'weekly' && (
-            <View style={s.weekRow}>
+            <View style={styles.weekRow}>
               {DOW_LETTER.map((letter, d) => {
                 const on = (value.weekdays & (1 << d)) !== 0;
                 return (
@@ -140,9 +142,9 @@ export function WhenEditor({ value, onChange }: {
                     accessibilityLabel={DOW[d]}
                     accessibilityState={{ selected: on }}
                     onPress={() => toggleWeekday(d)}
-                    style={[s.dowCell, on && s.cellOn]}
+                    style={[styles.dowCell, on && styles.cellOn]}
                   >
-                    <Text style={[s.dowText, on && s.cellTextOn]}>{letter}</Text>
+                    <Text style={[styles.dowText, on && styles.cellTextOn]}>{letter}</Text>
                   </Pressable>
                 );
               })}
@@ -160,13 +162,13 @@ export function WhenEditor({ value, onChange }: {
         </>
       )}
 
-      <View style={s.timeRow}>
+      <View style={styles.timeRow}>
         <Stepper
           value={formatTime12(value.time)}
           onDec={() => set({ time: stepTime(value.time, -15) })}
           onInc={() => set({ time: stepTime(value.time, 15) })}
         />
-        <View style={s.presets}>
+        <View style={styles.presets}>
           {PRESETS.map(([icon, t]) => {
             const on = value.time === t;
             return (
@@ -176,7 +178,7 @@ export function WhenEditor({ value, onChange }: {
                 accessibilityLabel={`${t === '09:00' ? 'Morning' : t === '18:00' ? 'Evening' : 'Night'}, ${formatTime12(t)}`}
                 accessibilityState={{ selected: on }}
                 onPress={() => set({ time: t })}
-                style={[s.preset, on && s.presetOn]}
+                style={[styles.preset, on && styles.presetOn]}
               >
                 <Ionicons name={icon} size={16} color={on ? C.accent : C.dim} />
               </Pressable>
@@ -188,10 +190,10 @@ export function WhenEditor({ value, onChange }: {
   );
 }
 
-const s = StyleSheet.create({
+const makeStyles = () => StyleSheet.create({
   switch: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(0,0,0,0.35)',
+    backgroundColor: C.inputBg,
     borderRadius: R.pill,
     padding: 2,
   },

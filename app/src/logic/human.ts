@@ -15,6 +15,14 @@ export function formatShortDate(dateStr: string): string {
   return shortDate(dateStr);
 }
 
+/** "18 Oct" (+" 2027" when the year differs) — compact, for tight spots. */
+export function formatDayMonth(dateStr: string): string {
+  const d = new Date(dateStr + 'T00:00:00Z');
+  let out = new Intl.DateTimeFormat('en-GB', { timeZone: 'UTC', day: 'numeric', month: 'short' }).format(d);
+  if (dateStr.slice(0, 4) !== localDate().slice(0, 4)) out += ` ${dateStr.slice(0, 4)}`;
+  return out;
+}
+
 /** "Today" / "Tomorrow" / "Yesterday" / "Sun 18 Oct". */
 export function formatDay(dateStr: string, today = localDate()): string {
   if (dateStr === today) return 'Today';

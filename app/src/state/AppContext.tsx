@@ -1,7 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { PermissionsAndroid } from 'react-native';
-import MotorAlarms from '../alarm/native';
-import { syncAlarms, pushAlarmSet } from '../alarm/sync';
+import { syncAlarms } from '../alarm/sync';
 import type { Chore, ChoreEvent, Household, Member, Profile, Purchase, Swap } from '../types';
 import type { ChoreDraft } from '../db/api';
 import type { ChoreOverrides } from '../logic/rotation';
@@ -34,7 +33,6 @@ type AppState = {
   refresh: () => Promise<void>;
   actions: {
     retry: () => void;
-    renameMe: (name: string) => Promise<void>;
     startChore: (choreId: string) => void;
     completeChore: (choreId: string, date?: string) => void;
     skipChore: (choreId: string) => void;
@@ -44,11 +42,9 @@ type AppState = {
     requestSwap: (choreId: string, toMemberId: string | null) => void;
     acceptSwap: (requestId: string) => void;
     cancelSwap: (requestId: string) => void;
-    saveSettings: (patch: Partial<Pick<Household, 'snooze_minutes'>>) => Promise<void>;
     loadPurchases: () => Promise<void>;
     addPurchase: (item: string, amount: number) => void;
     deletePurchase: (purchaseId: string) => void;
-    ringTestAlarm: () => Promise<void>;
   };
 };
 
@@ -93,8 +89,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [profile]);
 
   // bootstrap: cached profile + snapshot render instantly; otherwise the
-  // device signs itself in and joins the household invisibly (default name,
-  // rename later in Family). The user never sees a setup screen.
+  // device signs itself in and joins the household invisibly under a default
+  // name (members are renamed from the admin side). The user sees no setup.
   useEffect(() => {
     (async () => {
       try {
@@ -184,16 +180,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setError(null);
       setPhase('boot');
       setReloadKey((k) => k + 1);
-    },
-
-    async renameMe(name) {
-      if (!profile || !me) return;
-      const trimmed = name.trim();
-      if (trimmed.length < 1 || trimmed.length > 30) return;
-      writeBehind(
-        () => setMembers((prev) => prev.map((m) => (m.id === me.id ? { ...m, name: trimmed } : m))),
-        async () => { await api.renameMember(me.id, trimmed); },
-      );
     },
 
     startChore(choreId) {
@@ -303,13 +289,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       writeBehind(() => {}, () => api.cancelSwap(requestId));
     },
 
-    async saveSettings(patch) {
-      if (!profile) return;
-      if (patch.snooze_minutes != null) await MotorAlarms.setSnoozeMinutes(patch.snooze_minutes);
-      await api.saveHouseholdSettings(profile.householdId, patch);
-      await refresh();
-    },
-
     async loadPurchases() {
       if (!profile || purchases) return;
       try {
@@ -340,19 +319,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         await refresh();
       });
     },
-
-    async ringTestAlarm() {
-      // keep the real alarms and add a one-shot test entry a minute out
-      const test = [{
-        id: 'test',
-        atMs: Date.now() + 60_000,
-        title: 'Test alarm',
-        body: 'If you see this, alarms work on this phone.',
-        rechain: false,
-      }];
-      await pushAlarmSet([...desiredAlarms.filter((a) => a.id !== 'test'), ...test]);
-    },
-  }), [chores, events, household, me, profile, purchases, refresh, today, writeBehind, desiredAlarms]);
+  }), [chores, events, household, me, profile, purchases, refresh, today, writeBehind]);
 
   const value: AppState = {
     phase, error, stale, profile, household, members, chores, events, overrides, swaps, purchases,

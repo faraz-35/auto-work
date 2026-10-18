@@ -89,3 +89,28 @@ export function assigneeFor(
 export function eventFor(events: ChoreEvent[], choreId: string, dateStr: string): ChoreEvent | undefined {
   return events.find((e) => e.chore_id === choreId && e.on_date === dateStr);
 }
+
+/** My earliest assigned occurrence after fromDate (exclusive), across active
+ *  non-spawned chores — the dashboard's "next up". */
+export function nextForMe(
+  me: Member,
+  chores: Chore[],
+  members: Member[],
+  overrides: ChoreOverrides,
+  fromDate: string,
+  maxDays = 35
+): { chore: Chore; date: string } | null {
+  let best: { chore: Chore; date: string } | null = null;
+  for (const chore of chores) {
+    if (!chore.active || chore.spawned_from != null) continue;
+    for (let i = 1; i <= maxDays; i++) {
+      const d = addDays(fromDate, i);
+      if (!occursOn(chore, d)) continue;
+      if (assigneeFor(chore, d, members, overrides)?.id === me.id) {
+        if (best == null || d < best.date) best = { chore, date: d };
+        break;
+      }
+    }
+  }
+  return best;
+}

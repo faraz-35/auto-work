@@ -1,260 +1,85 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text } from 'react-native';
+import { useMemo } from 'react';
+import { ScrollView, StyleSheet, Text } from 'react-native';
 import { C, S, T, W } from '../theme';
+import { useStyles } from '../components/useStyles';
 import { Screen } from '../components/Screen';
-import { Btn, Fab, Card, Pill, Row, SectionTitle, roles } from '../components/ui';
-import { Sheet } from '../components/Sheet';
-import { ChoreModal } from '../components/ChoreModal';
+import { Card, Meter, Row, SectionTitle, roles } from '../components/ui';
 import { useApp } from '../state/AppContext';
-import { formatRemaining } from '../logic/alarms';
-import { formatShortDate, formatTimeOf, scheduleLabel } from '../logic/human';
-import { assigneeFor, eventFor, localDateOf, occursOn } from '../logic/rotation';
-import type { Chore } from '../types';
+import { houseStats } from '../logic/stats';
+import { formatShortDate, formatTimeOf } from '../logic/human';
 
 export function TodayScreen() {
-  const app = useApp();
-  const { chores, events, members, overrides, swaps, me, today, stale, error, actions } = app;
-  const [addOpen, setAddOpen] = useState(false);
-  const [swapFor, setSwapFor] = useState<Chore | null>(null);
-  const [now, setNow] = useState(Date.now());
+  const { chores, events, members, overrides, memberName, me, today, stale, error } = useApp();
+  const styles = useStyles(makeStyles);
 
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(t);
-  }, []);
-
-  const memberName = app.memberName;
-
-  const occurrences = useMemo(
-    () => chores.filter((c) => c.active && occursOn(c, today)),
-    [chores, today]
-  );
-  const myOpen = useMemo(
-    () => occurrences.filter((c) =>
-      assigneeFor(c, today, members, overrides)?.id === me?.id && !eventFor(events, c.id, today)),
-    [occurrences, members, overrides, me, events, today]
-  );
-  const othersOpen = useMemo(
-    () => occurrences.filter((c) => {
-      const a = assigneeFor(c, today, members, overrides);
-      return a && a.id !== me?.id && !eventFor(events, c.id, today);
-    }),
-    [occurrences, members, overrides, me, events, today]
-  );
-  // open close-chores (spawned by a start) are "happening now" countdowns —
-  // only today's; spawns left over from past days are stale and ignored
-  const runningClose = useMemo(
-    () => chores.filter((c) =>
-      c.active && c.spawned_from != null && c.due_at != null
-      && localDateOf(c.due_at) === today
-      && !eventFor(events, c.id, today)),
-    [chores, events, today]
+  const stats = useMemo(
+    () => houseStats({ chores, events, members, overrides, from: today, to: today }),
+    [chores, events, members, overrides, today]
   );
 
-  const pendingSwaps = useMemo(
-    () => swaps.filter((s) => s.status === 'pending' && s.on_date >= today && s.from_member_id !== me?.id),
-    [swaps, today, me]
-  );
-
-  const doneToday = useMemo(
-    () => events.filter((e) => e.on_date === today && e.status !== 'started').length,
-    [events, today]
-  );
-
-  const onMe = myOpen.length + runningClose.length;
-
-  const guard = (fn: () => Promise<void> | void) => {
-    try {
-      const r = fn();
-      if (r && typeof (r as Promise<void>).catch === 'function') {
-        (r as Promise<void>).catch((e) =>
-          Alert.alert('Something broke', e instanceof Error ? e.message : String(e)));
-      }
-    } catch (e) {
-      Alert.alert('Something broke', e instanceof Error ? e.message : String(e));
-    }
-  };
-
-  const byMember = useMemo(() => {
-    const groups = new Map<string, Chore[]>();
-    for (const c of othersOpen) {
-      const a = assigneeFor(c, today, members, overrides)!;
-      groups.set(a.name, [...(groups.get(a.name) ?? []), c]);
-    }
-    return [...groups.entries()];
-  }, [othersOpen, members, overrides, today]);
+  const verb = (status: string) => (status === 'done' ? 'did' : status === 'skipped' ? 'skipped' : 'started');
+  const choreTitle = (id: string) => chores.find((c) => c.id === id)?.title ?? 'a chore';
 
   return (
     <Screen>
-      <ScrollView style={s.screen} contentContainerStyle={s.content}>
-        <SectionTitle>Today · {formatShortDate(today)}</SectionTitle>
+      <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+        <SectionTitle>{`Whole house · ${formatShortDate(today)}`}</SectionTitle>
 
-        {stale && <Text style={s.stale}>showing saved state — refreshing…</Text>}
-        {error && !stale && <Text style={s.stale}>{error}</Text>}
+        {stale && <Text style={styles.stale}>showing saved state — refreshing…</Text>}
+        {error && !stale && <Text style={styles.stale}>{error}</Text>}
 
         <Card style={{ paddingVertical: 20 }}>
-          <Text style={[s.heroState, { color: onMe === 0 ? C.good : C.text }]}>
-            {onMe === 0 ? 'All clear' : onMe === 1 ? 'One thing on you' : `${onMe} things on you`}
+          <Text style={[styles.heroState, { color: stats.left === 0 && stats.done > 0 ? C.good : C.text }]}>
+            {stats.done === 0 && stats.left === 0
+              ? 'Nothing due today'
+              : stats.left === 0
+                ? `${stats.done} done · all done`
+                : `${stats.done} done · ${stats.left} left`}
           </Text>
-          <Text style={s.heroMeta}>
-            {doneToday > 0 ? `${doneToday} finished today · ` : ''}
-            {othersOpen.length > 0 ? `${othersOpen.length} on the rest of the house` : 'nothing else pending'}
-          </Text>
+          {stats.skipped > 0 && <Text style={styles.heroMeta}>{stats.skipped} skipped</Text>}
         </Card>
 
-        {runningClose.map((c) => {
-          const at = c.due_at ? Date.parse(c.due_at) : null;
-          const remaining = at != null ? at - now : null;
-          return (
-            <Card key={c.id} style={remaining != null && remaining < 0 ? { borderColor: C.bad } : undefined}>
-              <Row style={{ justifyContent: 'space-between' }}>
-                <Text style={s.cardTitle}>{c.title}</Text>
-                {remaining != null && (
-                  <Text style={[s.countdown, { color: remaining > 0 ? C.warn : C.bad }]}>
-                    {formatRemaining(remaining)}
-                  </Text>
-                )}
-              </Row>
-              <Text style={s.meta}>
-                {memberName(c.assignee_member_id)} has to close it
-                {remaining != null && remaining < 0 ? ' · overdue' : ` · alarm at ${c.due_at ? formatTimeOf(c.due_at) : '—'}`}
+        <SectionTitle>Everyone</SectionTitle>
+        <Card style={{ gap: 12 }}>
+          {stats.byMember.map((sc) => (
+            <Row key={sc.member.id}>
+              <Text style={styles.memberName}>
+                {sc.member.name}{sc.member.id === me?.id ? ' · you' : ''}
               </Text>
-              <Btn title="I closed it" compact onPress={() => guard(() => actions.completeChore(c.id, today))} />
-            </Card>
-          );
-        })}
+              <Meter value={sc.done} total={sc.assigned} good={sc.assigned > 0 && sc.done === sc.assigned} />
+              <Text style={[styles.score, sc.assigned === 0 && { color: C.dim }]}>
+                {sc.assigned > 0 ? `${sc.done}/${sc.assigned}` : '—'}
+              </Text>
+            </Row>
+          ))}
+        </Card>
 
-        {myOpen.map((c) => {
-          const overdue = c.due_at != null && Date.parse(c.due_at) < now;
-          const isTurn = c.duration_minutes != null;
-          return (
-            <Card key={c.id} style={overdue ? { borderColor: C.bad } : undefined}>
-              <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
-                <Text style={s.cardTitle}>{c.title}</Text>
-                <Row style={{ gap: 6 }}>
-                  {c.strict && <Pill text="alarm" tone="warn" />}
-                  {overdue && <Pill text="overdue" tone="bad" />}
-                </Row>
-              </Row>
-              {c.note && <Text style={s.meta}>{c.note}</Text>}
-              <Row style={{ justifyContent: 'space-between' }}>
-                <Text style={s.meta}>
-                  {scheduleLabel(c)}
-                </Text>
-                {c.amount != null && (
-                  <Text style={s.amount}>{`Rs ${c.amount.toLocaleString('en-PK')}`}</Text>
-                )}
-              </Row>
-              {isTurn ? (
-                <Btn title={`Start — ${c.duration_minutes} min`} compact onPress={() => guard(() => actions.startChore(c.id))} />
-              ) : (
-                <Btn title="Done" compact onPress={() => guard(() => actions.completeChore(c.id))} />
-              )}
-              {(c.rotate || c.repeat_days != null) && (
-                <Btn title="I can't — ask someone else" kind="link" onPress={() => setSwapFor(c)} />
-              )}
-            </Card>
-          );
-        })}
-
-        {byMember.length > 0 && (
-          <>
-            <SectionTitle>Around the house</SectionTitle>
-            {byMember.map(([name, list]) => (
-              <Card key={name} style={{ gap: 8 }}>
-                <Text style={s.cardTitle}>{name}</Text>
-                {list.map((c) => (
-                  <Text key={c.id} style={s.meta}>{c.title}{c.amount != null ? ` (Rs ${c.amount.toLocaleString('en-PK')})` : ''}</Text>
-                ))}
-              </Card>
-            ))}
-          </>
-        )}
-
-        {pendingSwaps.length > 0 && (
-          <>
-            <SectionTitle>Swap requests</SectionTitle>
-            {pendingSwaps.map((sw) => {
-              const chore = chores.find((c) => c.id === sw.chore_id);
-              return (
-                <Card key={sw.id}>
-                  <Row style={{ justifyContent: 'space-between' }}>
-                    <Text style={s.cardTitle}>
-                      {memberName(sw.from_member_id)} can't do {chore?.title ?? 'a chore'}
-                    </Text>
-                    {sw.to_member_id == null
-                      ? <Pill text="anyone" tone="dim" />
-                      : sw.to_member_id === me?.id ? <Pill text="asks you" tone="warn" /> : null}
-                  </Row>
-                  {(sw.to_member_id == null || sw.to_member_id === me?.id) && (
-                    <Btn title="I'll take it" onPress={() => guard(() => actions.acceptSwap(sw.id))} />
-                  )}
-                  {sw.to_member_id != null && sw.to_member_id !== me?.id && (
-                    <Text style={s.meta}>Waiting for {memberName(sw.to_member_id)}.</Text>
-                  )}
-                </Card>
-              );
-            })}
-          </>
-        )}
-
-        <ChoreModal visible={addOpen} onClose={() => setAddOpen(false)} />
-        <SwapModal
-          chore={swapFor}
-          onClose={() => setSwapFor(null)}
-          onSubmit={(to) => {
-            if (swapFor) guard(() => actions.requestSwap(swapFor.id, to));
-            setSwapFor(null);
-          }}
-        />
+        <SectionTitle>Who did what</SectionTitle>
+        <Card style={{ gap: 10 }}>
+          {stats.feed.length === 0 && <Text style={roles().meta}>Nothing yet today.</Text>}
+          {stats.feed.map((e) => (
+            <Row key={e.id} style={{ justifyContent: 'space-between' }}>
+              <Text style={styles.feedText}>
+                <Text style={{ color: C.text, fontWeight: W.semibold }}>{memberName(e.by)}</Text>
+                {' '}{verb(e.status)}{' '}{choreTitle(e.choreId)}
+              </Text>
+              <Text style={styles.feedTime}>{e.at ? formatTimeOf(e.at) : ''}</Text>
+            </Row>
+          ))}
+        </Card>
       </ScrollView>
-      <Fab icon="add" label="Add chore" onPress={() => setAddOpen(true)} />
     </Screen>
   );
 }
 
-function SwapModal({
-  chore, onClose, onSubmit,
-}: {
-  chore: Chore | null;
-  onClose: () => void;
-  onSubmit: (toMemberId: string | null) => void;
-}) {
-  const { members, me, swaps, today } = useApp();
-  if (!chore) return null;
-  const alreadyRequested = swaps.some(
-    (s) => s.status === 'pending' && s.from_member_id === me?.id && s.chore_id === chore.id && s.on_date === today
-  );
-  const others = members.filter((m) => m.active && m.id !== me?.id);
-
-  return (
-    <Sheet visible onClose={onClose} title={`Hand over "${chore.title}"`}>
-      {alreadyRequested ? (
-        <Text style={roles.meta}>Your request is already out — ask a sibling directly if it's urgent.</Text>
-      ) : (
-        <>
-          <Text style={roles.meta}>
-            Whoever accepts covers it, and repays you by taking your next turn of this chore.
-          </Text>
-          <Btn title="Ask anyone in the house" onPress={() => onSubmit(null)} />
-          {others.map((m) => (
-            <Btn key={m.id} title={`Ask ${m.name}`} kind="link" onPress={() => onSubmit(m.id)} />
-          ))}
-        </>
-      )}
-      <Btn title="Close" kind="link" onPress={onClose} />
-    </Sheet>
-  );
-}
-
-const s = StyleSheet.create({
+const makeStyles = () => StyleSheet.create({
   screen: { flex: 1, backgroundColor: C.bg },
-  content: { padding: S.screen, gap: S.gap, paddingBottom: 96 },
+  content: { padding: S.screen, gap: S.gap, paddingBottom: 32 },
   heroState: { fontSize: T.hero, fontWeight: W.bold, letterSpacing: -0.3 },
   heroMeta: { color: C.dim, fontSize: T.body, marginTop: 4 },
-  cardTitle: { ...roles.title },
-  countdown: { fontSize: T.display, fontWeight: W.heavy, fontVariant: ['tabular-nums'] },
-  amount: { ...roles.amount },
-  meta: { ...roles.meta },
+  memberName: { color: C.text, fontSize: T.body, fontWeight: W.medium, width: 96 },
+  score: { color: C.text, fontSize: T.body, fontWeight: W.semibold, fontVariant: ['tabular-nums'], minWidth: 36, textAlign: 'right' },
+  feedText: { color: C.dim, fontSize: T.body, flex: 1 },
+  feedTime: { color: C.dim, fontSize: T.tiny, fontVariant: ['tabular-nums'] },
   stale: { color: C.warn, fontSize: T.meta },
 });

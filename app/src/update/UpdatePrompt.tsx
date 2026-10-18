@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { C, T } from '../theme';
+import { useStyles } from '../components/useStyles';
 import { Btn } from '../components/ui';
 import { Sheet } from '../components/Sheet';
 import { checkForUpdate, downloadAndInstall, type Release } from './updater';
@@ -34,6 +35,7 @@ export function UpdatePrompt() {
 
 function UpdateSheet({ release, onClose }: { release: Release; onClose: () => void }) {
   const [stage, setStage] = useState<Stage>('available');
+  const styles = useStyles(makeStyles);
   const [progress, setProgress] = useState<number | null>(null);
   const [error, setError] = useState('');
 
@@ -54,24 +56,24 @@ function UpdateSheet({ release, onClose }: { release: Release; onClose: () => vo
 
   return (
     <Sheet visible onClose={onClose} title="Update Auto Work">
-      <Text style={s.subtitle}>
+      <Text style={styles.subtitle}>
         {stage === 'downloading'
           ? pct != null ? `Downloading Auto Work ${name}… ${pct}%` : `Downloading Auto Work ${name}…`
           : `Auto Work ${name} is out. It downloads about ${mb} MB, then Android installs it.`}
       </Text>
       {stage === 'downloading' && (
-        <View style={s.track}>
+        <View style={styles.track}>
           <View
             style={[
-              s.fill,
+              styles.fill,
               { width: `${pct ?? 100}%`, opacity: pct != null ? 1 : 0.35 },
             ]}
           />
         </View>
       )}
-      {stage === 'failed' && <Text style={s.error}>Download failed: {error}</Text>}
+      {stage === 'failed' && <Text style={styles.error}>Download failed: {error}</Text>}
       {stage === 'downloading' ? (
-        <Text style={s.hint}>You can keep using Auto Work; Android asks when it's ready.</Text>
+        <Text style={styles.hint}>You can keep using Auto Work; Android asks when it's ready.</Text>
       ) : (
         <>
           <Btn title={stage === 'failed' ? 'Try again' : 'Update now'} onPress={() => void start()} />
@@ -82,7 +84,7 @@ function UpdateSheet({ release, onClose }: { release: Release; onClose: () => vo
   );
 }
 
-const s = StyleSheet.create({
+const makeStyles = () => StyleSheet.create({
   subtitle: { color: C.dim, fontSize: T.body, marginTop: -6 },
   track: { height: 6, borderRadius: 3, backgroundColor: C.border, overflow: 'hidden' },
   fill: { height: 6, borderRadius: 3, backgroundColor: C.accent },
