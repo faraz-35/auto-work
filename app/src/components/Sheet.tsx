@@ -1,11 +1,12 @@
-import React from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { Keyboard, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { C, R, S, T, W } from '../theme';
 
 /** The app's one bottom sheet: dim backdrop, rounded card, title, optional
  *  subtitle, safe-area padding. Every sheet in the app is this — tapping the
- *  backdrop closes it, tapping the card does not. */
+ *  backdrop closes it, tapping the card does not. The card rides above the
+ *  keyboard (edge-to-edge Android ignores adjustResize, so we lift it here). */
 export function Sheet({
   visible, onClose, title, subtitle, scroll, style, children,
 }: {
@@ -19,11 +20,23 @@ export function Sheet({
   children: React.ReactNode;
 }) {
   const insets = useSafeAreaInsets();
+  const [keyboard, setKeyboard] = useState(0);
+
+  useEffect(() => {
+    const didShow = Keyboard.addListener('keyboardDidShow', (e) => setKeyboard(e.endCoordinates.height));
+    const didHide = Keyboard.addListener('keyboardDidHide', () => setKeyboard(0));
+    return () => { didShow.remove(); didHide.remove(); };
+  }, []);
+
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <Pressable style={s.backdrop} onPress={onClose}>
         <Pressable
-          style={[s.sheet, { paddingBottom: S.sheetBottom + insets.bottom }, style]}
+          style={[
+            s.sheet,
+            { paddingBottom: S.sheetBottom + insets.bottom, marginBottom: keyboard },
+            style,
+          ]}
           onPress={() => undefined}
         >
           {title ? <Text style={s.title}>{title}</Text> : null}

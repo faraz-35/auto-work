@@ -71,14 +71,16 @@ export function Chip({ label, active, onPress }: { label: string; active?: boole
 }
 
 /** Icon (+ optional value text) pill for detail strips — tap to expand or
- *  toggle what it stands for. `tone` colors the active state. */
+ *  toggle what it stands for. `tone` colors the active state; `chevron`
+ *  marks an expander, pointing down folded and up open. */
 export function Token({
-  icon, label, active, tone = 'accent', onPress, accessibilityLabel, shrink,
+  icon, label, active, tone = 'accent', chevron, onPress, accessibilityLabel, shrink,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   label?: string;
   active?: boolean;
   tone?: 'accent' | 'warn';
+  chevron?: boolean;
   onPress: () => void;
   accessibilityLabel?: string;
   shrink?: boolean;
@@ -100,6 +102,9 @@ export function Token({
       <Ionicons name={icon} size={15} color={fg} />
       {label != null && (
         <Text numberOfLines={1} style={[styles.tokenText, { color: fg }]}>{label}</Text>
+      )}
+      {chevron && (
+        <Ionicons name={active ? 'chevron-up' : 'chevron-down'} size={13} color={fg} />
       )}
     </Pressable>
   );

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Alert, StyleSheet, TextInput } from 'react-native';
+import { Alert, StyleSheet, TextInput, View } from 'react-native';
 import { C, T, W } from '../theme';
 import { Btn, Chip, IconField, Row, Segmented, Stepper, Token } from './ui';
 import { Sheet } from './Sheet';
@@ -28,6 +28,9 @@ const karachiTime = (iso: string) =>
 
 /** The ordinal word used by scheduleLabel: "on the 25". */
 const ordinal = (n: number) => `${n}${n === 1 || n === 21 ? 'st' : n === 2 || n === 22 ? 'nd' : n === 3 || n === 23 ? 'rd' : 'th'}`;
+
+/** "6:00 PM" -> "6 PM" where minutes are zero — token-sized. */
+const compactTime = (t: string) => formatTime12(t).replace(':00 ', ' ');
 
 type Props = {
   visible: boolean;
@@ -91,7 +94,7 @@ export function ChoreModal({ visible, onClose, editing = null }: Props) {
   };
 
   const whenLabel = () => {
-    const at = formatTime12(time);
+    const at = compactTime(time);
     if (mode === 'once') return `${formatDay(onceDate)} ${at}`;
     if (mode === 'every') return everyDays === 1 ? `Daily ${at}` : `Every ${everyDays} days ${at}`;
     return `Monthly on the ${ordinal(monthlyDay)} ${at}`;
@@ -175,15 +178,17 @@ export function ChoreModal({ visible, onClose, editing = null }: Props) {
           accessibilityLabel={strict ? 'Alarm rings at the deadline — tap to turn off' : 'No alarm — tap to ring one at the deadline'}
           onPress={() => setStrict(!strict)}
         />
+      </Row>
+      <View style={{ alignSelf: 'flex-start' }}>
         <Token
-          icon="add"
-          label={moreParts.length > 0 ? moreParts.join(' · ') : undefined}
-          accessibilityLabel="Add a note, amount or duration"
+          icon="ellipsis-horizontal"
+          chevron
+          label={open === 'more' ? 'Less' : moreParts.length > 0 ? moreParts.join(' · ') : 'More'}
           active={open === 'more'}
-          shrink
+          accessibilityLabel={open === 'more' ? 'Hide the note, amount and duration fields' : 'Show the note, amount and duration fields'}
           onPress={() => toggle('more')}
         />
-      </Row>
+      </View>
 
       {open === 'who' && (
         <Row style={{ flexWrap: 'wrap' }}>
