@@ -43,7 +43,7 @@
   <img src="icon.png" alt="Auto Work">
   <h1>Auto Work</h1>
   <p class="lead">Chores for the whole house. Install it, open it — you're in.</p>
-  <a class="btn" id="download" href="https://github.com/faraz-35/auto-work/releases/latest">Download for Android</a>
+  <a class="btn" id="download" href="Auto-Work.apk" download>Download for Android</a>
   <div class="meta" id="meta">checking the latest version…</div>
   <p class="note">Updates arrive inside the app. On Redmi or Infinix, allow autostart and turn off battery optimization so alarms always ring.</p>
 </main>
@@ -51,14 +51,11 @@
   fetch('https://api.github.com/repos/faraz-35/auto-work/releases/latest')
     .then((r) => r.json())
     .then((rel) => {
-      const apk = (rel.assets || []).find((a) => a.name.endsWith('.apk'));
-      if (!apk) throw new Error('no apk');
-      document.getElementById('download').href = apk.browser_download_url;
-      const mb = Math.round(apk.size / 1e6);
+      const mb = Math.round((rel.assets?.[0]?.size || 0) / 1e6);
       document.getElementById('meta').textContent = `Latest: Auto Work ${rel.tag_name.replace(/^v/, '')} · ${mb} MB`;
     })
     .catch(() => {
-      document.getElementById('meta').textContent = 'Opens the latest release on GitHub.';
+      document.getElementById('meta').textContent = '';
     });
 </script>
 </body>
