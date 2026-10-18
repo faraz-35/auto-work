@@ -10,6 +10,7 @@ import type { Chore } from '../types';
 import { useApp } from '../state/AppContext';
 import { localDate } from '../logic/rotation';
 import { formatDay, formatTime12 } from '../logic/human';
+import { errorMessage } from '../logic/errors';
 
 /** "18:00" -> "6 PM" where minutes are zero — token-sized. */
 const compactTime = (t: string) => formatTime12(t).replace(':00 ', ' ');
@@ -54,8 +55,6 @@ export function ChoreModal({ visible, onClose, editing = null }: Props) {
   const [people, setPeople] = useState<string[]>([]);
   const [rotate, setRotate] = useState(true);
   const [strict, setStrict] = useState(false);
-  const [amount, setAmount] = useState('');
-  const [duration, setDuration] = useState('');
   const [schedule, setSchedule] = useState<Schedule>(freshSchedule);
   const [open, setOpen] = useState<'who' | 'when' | 'more' | null>(null);
   const [busy, setBusy] = useState(false);
@@ -89,11 +88,9 @@ export function ChoreModal({ visible, onClose, editing = null }: Props) {
         s.time = editing.time_of_day.slice(0, 5) || '18:00';
       }
       setStrict(editing.strict);
-      setAmount(editing.amount != null ? String(editing.amount) : '');
-      setDuration(editing.duration_minutes != null ? String(editing.duration_minutes) : '');
     } else {
       setTitle(''); setNote(''); setRotate(true); setPeople([]);
-      setStrict(false); setAmount(''); setDuration('');
+      setStrict(false);
     }
     setSchedule(s);
     setOpen(null);
@@ -121,25 +118,19 @@ export function ChoreModal({ visible, onClose, editing = null }: Props) {
     return `Monthly on the ${ordinal(schedule.monthlyDay)} ${at}`;
   };
 
-  const moreParts = [note.trim(), amount.trim() !== '' ? `Rs ${Number(amount)}` : '', duration.trim() !== '' ? `${duration} min` : ''].filter(Boolean);
+  const notePreview = note.trim();
 
   const submit = async () => {
     try {
       const trimmed = title.trim();
       if (trimmed.length < 1 || trimmed.length > 80) throw new Error('Give the chore a name (1–80 letters).');
       if (!rotate && people.length === 0) throw new Error('Pick a person.');
-      const amountN = amount.trim() === '' ? null : Number(amount);
-      if (amountN != null && !(amountN > 0)) throw new Error('Amount must be more than 0.');
-      const durationN = duration.trim() === '' ? null : Number(duration);
-      if (durationN != null && !(durationN >= 1 && durationN <= 120)) throw new Error('Duration must be 1–120 minutes.');
 
       const base: ChoreDraft = {
         title: trimmed,
         note: note.trim() || null,
         rotate,
         strict,
-        amount: amountN,
-        durationMinutes: durationN,
         rotationMembers: rotate ? (people.length > 0 ? people : null) : null,
       };
       if (schedule.kind === 'once') {
@@ -161,7 +152,7 @@ export function ChoreModal({ visible, onClose, editing = null }: Props) {
         const patch: Partial<Chore> = {
           title: base.title, note: base.note,
           assignee_member_id: rotate ? null : people[0], rotate,
-          strict: base.strict, amount: base.amount, duration_minutes: base.durationMinutes,
+          strict: base.strict,
           due_at: base.dueAt ?? null, repeat_days: base.repeatDays ?? null,
           repeat_weekdays: base.repeatWeekdays ?? null,
           repeat_monthly_day: base.repeatMonthlyDay ?? null,
@@ -179,7 +170,7 @@ export function ChoreModal({ visible, onClose, editing = null }: Props) {
       }
       onClose();
     } catch (e) {
-      Alert.alert('Chore', e instanceof Error ? e.message : String(e));
+      Alert.alert('Chore', errorMessage(e));
     } finally {
       setBusy(false);
     }
@@ -218,9 +209,9 @@ export function ChoreModal({ visible, onClose, editing = null }: Props) {
         <Token
           icon="ellipsis-horizontal"
           chevron
-          label={open === 'more' ? 'Less' : moreParts.length > 0 ? moreParts.join(' · ') : 'More'}
+          label={open === 'more' ? 'Less' : notePreview !== '' ? notePreview : 'Note'}
           active={open === 'more'}
-          accessibilityLabel={open === 'more' ? 'Hide the note, amount and duration fields' : 'Show the note, amount and duration fields'}
+          accessibilityLabel={open === 'more' ? 'Hide the note field' : 'Show the note field'}
           onPress={() => toggle('more')}
         />
       </View>
@@ -247,13 +238,7 @@ export function ChoreModal({ visible, onClose, editing = null }: Props) {
       {open === 'when' && <WhenEditor value={schedule} onChange={setSchedule} />}
 
       {open === 'more' && (
-        <>
-          <IconField icon="create-outline" value={note} onChangeText={setNote} placeholder="Note" />
-          <Row>
-            <IconField icon="cash-outline" prefix="Rs" value={amount} onChangeText={setAmount} keyboardType="number-pad" placeholder="4500" style={{ flex: 1 }} />
-            <IconField icon="time-outline" suffix="min" value={duration} onChangeText={setDuration} keyboardType="number-pad" placeholder="10" style={{ width: 128 }} />
-          </Row>
-        </>
+        <IconField icon="create-outline" value={note} onChangeText={setNote} placeholder="Note" />
       )}
 
       <Btn title={editing ? 'Save changes' : 'Add chore'} onPress={submit} loading={busy} />

@@ -17,12 +17,11 @@ export function deadlineMs(chore: Chore, dateStr: string): number {
   return Date.parse(`${dateStr}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00${TZ_OFFSET}`);
 }
 
-function alarmBody(chore: Chore, dateStr: string, member: Member): string {
+function alarmBody(chore: Chore, member: Member): string {
   const when = chore.due_at != null
     ? new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Karachi', hour: '2-digit', minute: '2-digit' }).format(new Date(chore.due_at))
     : chore.time_of_day.slice(0, 5);
-  const rs = chore.amount != null ? ` · Rs ${chore.amount.toLocaleString('en-PK')}` : '';
-  return `Due by ${when} · ${member.name}${rs}`;
+  return `Due by ${when} · ${member.name}`;
 }
 
 /**
@@ -50,7 +49,7 @@ export function computeDesiredAlarms(
       id: `${chore.id}:${dateStr}`,
       atMs,
       title: chore.title,
-      body: alarmBody(chore, dateStr, member),
+      body: alarmBody(chore, member),
       rechain: chore.due_at == null,
     });
   };

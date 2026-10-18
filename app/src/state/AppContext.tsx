@@ -33,7 +33,6 @@ type AppState = {
   refresh: () => Promise<void>;
   actions: {
     retry: () => void;
-    startChore: (choreId: string) => void;
     completeChore: (choreId: string, date?: string) => void;
     skipChore: (choreId: string) => void;
     saveChore: (draft: ChoreDraft) => Promise<void>;
@@ -193,60 +192,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setReloadKey((k) => k + 1);
     },
 
-    startChore(choreId) {
-      const chore = chores.find((c) => c.id === choreId);
-      if (!chore || !me || !household) return;
+    completeChore(choreId, date = today) {
+      if (!me || !household) return;
       const now = new Date().toISOString();
-      const spawnId = `tmp-spawn-${choreId}-${today}`;
       writeBehind(
         () => {
           setEvents((prev) => [
-            ...prev.filter((e) => !(e.chore_id === choreId && e.on_date === today)),
+            ...prev.filter((e) => !(e.chore_id === choreId && e.on_date === date)),
             {
-              id: `tmp-${choreId}-${today}`, household_id: household.id, chore_id: choreId, on_date: today,
-              status: 'started' as const, started_at: now, started_by: me.id, done_at: null, done_by: null, created_at: now,
-            },
-          ]);
-          if (chore.duration_minutes != null) {
-            setChores((prev) => [
-              ...prev.filter((c) => c.spawned_from !== spawnId),
-              {
-                id: spawnId, household_id: household.id,
-                title: `Close: ${chore.title}`, note: null,
-                assignee_member_id: me.id, rotate: false, rotation_offset: 0, strict: true,
-                due_at: new Date(Date.now() + chore.duration_minutes! * 60_000).toISOString(),
-                repeat_days: null, repeat_weekdays: null, repeat_monthly_day: null, time_of_day: '10:00:00',
-                duration_minutes: null, amount: null, rotation_members: null,
-                spawned_from: `tmp-${choreId}-${today}`, active: true,
-                created_by: me.id, created_at: now,
-              },
-            ]);
-          }
-        },
-        async () => { await api.startChore(choreId, today); },
-      );
-    },
-
-    completeChore(choreId, date = today) {
-      const chore = chores.find((c) => c.id === choreId);
-      if (!chore || !me || !household) return;
-      const now = new Date().toISOString();
-      const parentEventId = chore.spawned_from;
-      writeBehind(
-        () => {
-          setEvents((prev) => {
-            const rest = prev.filter((e) => !(e.chore_id === choreId && e.on_date === date));
-            const next = [...rest, {
               id: `tmp-${choreId}-${date}`, household_id: household.id, chore_id: choreId, on_date: date,
               status: 'done' as const, started_at: null, started_by: null, done_at: now, done_by: me.id, created_at: now,
-            }];
-            if (parentEventId) {
-              return next.map((e) => e.id === parentEventId
-                ? { ...e, status: 'done' as const, done_at: now, done_by: me.id }
-                : e);
-            }
-            return next;
-          });
+            },
+          ]);
         },
         () => api.completeChore(choreId, date),
       );
@@ -330,7 +287,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         await refresh();
       });
     },
-  }), [chores, events, household, me, profile, purchases, refresh, today, writeBehind]);
+  }), [household, me, profile, purchases, refresh, today, writeBehind]);
 
   const value: AppState = {
     phase, error, stale, profile, household, members, chores, events, overrides, swaps, purchases,

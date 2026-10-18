@@ -6,6 +6,7 @@ import { useStyles } from '../components/useStyles';
 import { Btn } from '../components/ui';
 import { Sheet } from '../components/Sheet';
 import { checkForUpdate, downloadAndInstall, type Release } from './updater';
+import { errorMessage } from '../logic/errors';
 
 type Stage = 'available' | 'downloading' | 'failed';
 
@@ -45,7 +46,7 @@ function UpdateSheet({ release, onClose }: { release: Release; onClose: () => vo
       await downloadAndInstall(release, setProgress);
       setStage('available');  // installer took over; if the user backs out, offer again
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(errorMessage(e));
       setStage('failed');
     }
   };

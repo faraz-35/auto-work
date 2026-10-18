@@ -172,36 +172,30 @@ export function Stepper({
   );
 }
 
-/** Boxed text input with a leading icon and optional unit text — the
- *  labeled Field, collapsed into one line. */
+/** Boxed text input with a leading icon — the labeled Field, collapsed
+ *  into one line. */
 export function IconField({
-  icon, prefix, suffix, value, onChangeText, placeholder, keyboardType = 'default', style,
+  icon, value, onChangeText, placeholder, style,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
-  prefix?: string;
-  suffix?: string;
   value: string;
   onChangeText: (s: string) => void;
   placeholder?: string;
-  keyboardType?: 'default' | 'number-pad';
   style?: StyleProp<ViewStyle>;
 }) {
   const styles = useStyles(makeStyles);
   return (
     <View style={[styles.iconField, style]}>
       <Ionicons name={icon} size={16} color={C.dim} />
-      {prefix && <Text style={styles.iconFieldUnit}>{prefix}</Text>}
       <TextInput
         style={styles.iconFieldInput}
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
         placeholderTextColor={C.dim}
-        keyboardType={keyboardType}
         autoCapitalize="sentences"
         autoCorrect={false}
       />
-      {suffix && <Text style={styles.iconFieldUnit}>{suffix}</Text>}
     </View>
   );
 }
@@ -423,7 +417,6 @@ const makeStyles = () =>
       paddingHorizontal: 12,
       height: 42,
     },
-    iconFieldUnit: { color: C.dim, fontSize: T.body, fontWeight: W.medium },
     iconFieldInput: { flex: 1, color: C.text, fontSize: T.title, paddingVertical: 10 },
     pill: {
       borderRadius: R.pill,

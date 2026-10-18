@@ -11,8 +11,8 @@ const members = [member('a', 0), member('b', 1), member('c', 2)];
 const baseChore = {
   household_id: 'h', note: null, assignee_member_id: null, rotate: false, rotation_offset: 0,
   strict: false, due_at: null, repeat_days: null, repeat_weekdays: null, repeat_monthly_day: null,
-  time_of_day: '10:00:00', duration_minutes: null, amount: null, rotation_members: null,
-  spawned_from: null, active: true, created_by: null, created_at: '2026-09-01T00:00:00Z',
+  time_of_day: '10:00:00', rotation_members: null,
+  active: true, created_by: null, created_at: '2026-09-01T00:00:00Z',
 };
 
 const chore = (id: string, patch: Partial<Chore> = {}): Chore => ({ id, title: id, ...baseChore, ...patch } as Chore);
@@ -191,9 +191,8 @@ describe('nextForMe', () => {
     expect(nextForMe(members[2], [theirs, mineTomorrow], members, {}, '2026-10-16')).toBeNull();
   });
 
-  test('never points at spawned close chores or stopped chores', () => {
-    const spawn = chore('spawn', { assignee_member_id: 'a', due_at: '2026-10-17T18:00:00+05:00', spawned_from: 'e1' });
+  test('never points at stopped chores', () => {
     const stopped = chore('gone', { assignee_member_id: 'a', due_at: '2026-10-18T18:00:00+05:00', active: false });
-    expect(nextForMe(members[0], [spawn, stopped], members, {}, '2026-10-16')).toBeNull();
+    expect(nextForMe(members[0], [stopped], members, {}, '2026-10-16')).toBeNull();
   });
 });

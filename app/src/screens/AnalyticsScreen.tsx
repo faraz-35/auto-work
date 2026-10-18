@@ -40,7 +40,7 @@ export function AnalyticsScreen() {
     [chores, events, members, overrides, from, to, person, choreId, status]
   );
 
-  const pickableChores = chores.filter((c) => c.active && c.spawned_from == null);
+  const pickableChores = chores.filter((c) => c.active);
   const personLabel = person ? memberName(person) : 'Everyone';
   const choreLabel = choreId ? chores.find((c) => c.id === choreId)?.title ?? 'All chores' : 'All chores';
   const rangeLabel = custom ? `${formatDayMonth(from)} – ${formatDayMonth(to)}` : `${days} days`;

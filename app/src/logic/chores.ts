@@ -21,12 +21,10 @@ export const assignedTo = (c: Chore, memberId: string) =>
     ? c.rotation_members == null || c.rotation_members.includes(memberId)
     : c.assignee_member_id === memberId;
 
-/** The Chores tab list: definition chores only (spawned close chores live on
- *  the day they belong to), narrowed by the filter row. */
+/** The Chores tab list, narrowed by the filter row. */
 export function filterChores(chores: Chore[], f: ChoreFilters): Chore[] {
   return chores.filter((c) =>
-    c.spawned_from == null
-    && (f.state === 'all' || (f.state === 'active') === c.active)
+    (f.state === 'all' || (f.state === 'active') === c.active)
     && (f.createdBy == null || c.created_by === f.createdBy)
     && (f.assignee == null || assignedTo(c, f.assignee))
     && (f.kind === 'all' || (f.kind === 'recurring') === isRecurring(c))

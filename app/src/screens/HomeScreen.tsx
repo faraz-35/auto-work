@@ -8,9 +8,9 @@ import { Sheet } from '../components/Sheet';
 import { ChoreModal } from '../components/ChoreModal';
 import { useApp } from '../state/AppContext';
 import { houseStats } from '../logic/stats';
-import { formatRemaining } from '../logic/alarms';
 import { formatDay, formatShortDate, formatTime12, formatTimeOf, scheduleLabel } from '../logic/human';
 import { assigneeFor, eventFor, localDateOf, nextForMe, occursOn } from '../logic/rotation';
+import { errorMessage } from '../logic/errors';
 import type { Chore } from '../types';
 
 export function HomeScreen() {
@@ -37,16 +37,6 @@ export function HomeScreen() {
       assigneeFor(c, today, members, overrides)?.id === me?.id && !eventFor(events, c.id, today)),
     [occurrences, members, overrides, me, events, today]
   );
-  // close-chores I have to close today are "happening now" countdowns;
-  // spawns left over from past days are stale and ignored
-  const runningClose = useMemo(
-    () => chores.filter((c) =>
-      c.active && c.spawned_from != null && c.due_at != null
-      && c.assignee_member_id === me?.id
-      && localDateOf(c.due_at) === today
-      && !eventFor(events, c.id, today)),
-    [chores, events, me, today]
-  );
 
   const house = useMemo(
     () => houseStats({ chores, events, members, overrides, from: today, to: today }),
@@ -70,17 +60,16 @@ export function HomeScreen() {
     [swaps, today, me]
   );
 
-  const onMe = myOpen.length + runningClose.length;
+  const onMe = myOpen.length;
 
   const guard = (fn: () => Promise<void> | void) => {
     try {
       const r = fn();
       if (r && typeof (r as Promise<void>).catch === 'function') {
-        (r as Promise<void>).catch((e) =>
-          Alert.alert('Something broke', e instanceof Error ? e.message : String(e)));
+        (r as Promise<void>).catch((e) => Alert.alert('Something broke', errorMessage(e)));
       }
     } catch (e) {
-      Alert.alert('Something broke', e instanceof Error ? e.message : String(e));
+      Alert.alert('Something broke', errorMessage(e));
     }
   };
 
@@ -102,31 +91,8 @@ export function HomeScreen() {
           </Text>
         </Card>
 
-        {runningClose.map((c) => {
-          const at = c.due_at ? Date.parse(c.due_at) : null;
-          const remaining = at != null ? at - now : null;
-          return (
-            <Card key={c.id}>
-              <Row style={{ justifyContent: 'space-between' }}>
-                <Text style={styles.cardTitle}>{c.title}</Text>
-                {remaining != null && (
-                  <Text style={[styles.countdown, { color: remaining > 0 ? C.warn : C.bad }]}>
-                    {formatRemaining(remaining)}
-                  </Text>
-                )}
-              </Row>
-              <Text style={styles.meta}>
-                {remaining != null && remaining < 0 ? 'overdue · ' : ''}close it
-                {remaining != null && remaining >= 0 ? ` by ${formatTimeOf(c.due_at!)}` : ''}
-              </Text>
-              <Btn title="I closed it" compact onPress={() => guard(() => actions.completeChore(c.id, today))} />
-            </Card>
-          );
-        })}
-
         {myOpen.map((c) => {
           const overdue = c.due_at != null && Date.parse(c.due_at) < now;
-          const isTurn = c.duration_minutes != null;
           return (
             <Card key={c.id}>
               <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
@@ -141,15 +107,8 @@ export function HomeScreen() {
                 <Text style={styles.meta}>
                   {scheduleLabel(c)}
                 </Text>
-                {c.amount != null && (
-                  <Text style={styles.amount}>{`Rs ${c.amount.toLocaleString('en-PK')}`}</Text>
-                )}
               </Row>
-              {isTurn ? (
-                <Btn title={`Start — ${c.duration_minutes} min`} compact onPress={() => guard(() => actions.startChore(c.id))} />
-              ) : (
-                <Btn title="Done" compact onPress={() => guard(() => actions.completeChore(c.id))} />
-              )}
+              <Btn title="Done" compact onPress={() => guard(() => actions.completeChore(c.id))} />
               {(c.rotate || c.repeat_days != null) && (
                 <Btn title="I can't — ask someone else" kind="link" onPress={() => setSwapFor(c)} />
               )}
@@ -267,8 +226,6 @@ const makeStyles = () => StyleSheet.create({
   heroState: { fontSize: T.hero, fontWeight: W.bold, letterSpacing: -0.3 },
   heroMeta: { color: C.dim, fontSize: T.body, marginTop: 4 },
   cardTitle: { ...roles().title },
-  countdown: { fontSize: T.display, fontWeight: W.heavy, fontVariant: ['tabular-nums'] },
-  amount: { ...roles().amount },
   meta: { ...roles().meta },
   doneTitle: { ...roles().item, flex: 1 },
   doneTime: { color: C.dim, fontSize: T.meta, fontVariant: ['tabular-nums'] },

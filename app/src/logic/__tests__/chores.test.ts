@@ -4,8 +4,8 @@ import type { Chore } from '../../types';
 const baseChore = {
   household_id: 'h', note: null, assignee_member_id: null, rotate: false, rotation_offset: 0,
   strict: false, due_at: null, repeat_days: null, repeat_weekdays: null, repeat_monthly_day: null,
-  time_of_day: '10:00:00', duration_minutes: null, amount: null, rotation_members: null,
-  spawned_from: null, active: true, created_by: null, created_at: '2026-10-01T00:00:00Z',
+  time_of_day: '10:00:00', rotation_members: null,
+  active: true, created_by: null, created_at: '2026-10-01T00:00:00Z',
 };
 
 const chore = (id: string, patch: Partial<Chore> = {}): Chore =>
@@ -16,9 +16,8 @@ const once = chore('ke-bill', { due_at: '2026-10-25T13:00:00Z', assignee_member_
 const rotated = chore('motor', { repeat_days: 1, rotate: true, created_by: 'faraz' });
 const pooled = chore('car', { repeat_days: 1, rotate: true, rotation_members: ['faraz', 'bilal'], created_by: 'bilal' });
 const stopped = chore('old', { repeat_days: 1, active: false, created_by: 'faraz' });
-const spawned = chore('close-motor', { due_at: '2026-10-25T13:00:00Z', spawned_from: 'evt-1', created_by: 'faraz' });
 
-const all = [recurring, once, rotated, pooled, stopped, spawned];
+const all = [recurring, once, rotated, pooled, stopped];
 
 describe('isRecurring', () => {
   test('true for every repeat shape, false for one-offs', () => {
@@ -52,7 +51,7 @@ describe('filterChores', () => {
     expect(filterChores(all, { ...DEFAULT_CHORE_FILTERS, state: 'stopped' }).map((c) => c.id))
       .toEqual(['old']);
   });
-  test('all state includes stopped but never spawned chores', () => {
+  test('all state includes stopped chores', () => {
     expect(filterChores(all, { ...DEFAULT_CHORE_FILTERS, state: 'all' }).map((c) => c.id))
       .toEqual(['dishes', 'ke-bill', 'motor', 'car', 'old']);
   });

@@ -15,7 +15,7 @@ const members = [member('a', 0), member('b', 1), member('c', 2)];
 const baseChore = {
   household_id: 'h', note: null, assignee_member_id: null, rotate: false, rotation_offset: 0,
   strict: false, due_at: null, repeat_days: null, repeat_monthly_day: null, time_of_day: '10:00:00',
-  duration_minutes: null, amount: null, spawned_from: null, active: true, created_by: null,
+  rotation_members: null, active: true, created_by: null,
   created_at: '2026-09-01T00:00:00Z',
 };
 
@@ -165,13 +165,13 @@ describe('computeDesiredAlarms', () => {
     expect(alarms.find((a) => a.id === `m:${TODAY}`)).toBeUndefined();
   });
 
-  test('one-off bill arms at due_at with amount in body, no rechain', () => {
-    const c = chore('bill', { assignee_member_id: 'a', strict: true, due_at: '2026-10-16T18:00:00+05:00', amount: 4500 });
+  test('one-off bill arms at due_at with member in body, no rechain', () => {
+    const c = chore('bill', { assignee_member_id: 'a', strict: true, due_at: '2026-10-16T18:00:00+05:00' });
     const alarms = computeDesiredAlarms(member('a', 0), members, [c], [], {}, NOW);
     expect(alarms).toHaveLength(1);
     expect(alarms[0].atMs).toBe(Date.parse('2026-10-16T18:00:00+05:00'));
     expect(alarms[0].rechain).toBe(false);
-    expect(alarms[0].body).toContain('Rs 4,500');
+    expect(alarms[0].body).toContain('a');
   });
 
   test('past deadlines never arm', () => {

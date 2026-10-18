@@ -66,8 +66,6 @@ export type ChoreDraft = {
   repeatWeekdays?: number | null;
   repeatMonthlyDay?: number | null;
   timeOfDay?: string | null;
-  durationMinutes?: number | null;
-  amount?: number | null;
   rotationMembers?: string[] | null;
 };
 
@@ -82,8 +80,6 @@ export async function createChore(draft: ChoreDraft): Promise<string> {
     p_repeat_days: draft.repeatDays ?? null,
     p_repeat_monthly_day: draft.repeatMonthlyDay ?? null,
     p_time_of_day: draft.timeOfDay ?? null,
-    p_duration_minutes: draft.durationMinutes ?? null,
-    p_amount: draft.amount ?? null,
     p_rotation_members: draft.rotationMembers ?? null,
     p_repeat_weekdays: draft.repeatWeekdays ?? null,
   });
@@ -95,13 +91,6 @@ export async function createChore(draft: ChoreDraft): Promise<string> {
 export async function updateChore(choreId: string, patch: Partial<Chore>): Promise<void> {
   const { error } = await db.from('chores').update(patch).eq('id', choreId);
   if (error) throw error;
-}
-
-export async function startChore(choreId: string, date: string): Promise<string | null> {
-  const { data, error } = await db.rpc('start_chore', { p_chore: choreId, p_on_date: date });
-  if (error) throw error;
-  const row = Array.isArray(data) ? data[0] : data;
-  return row?.start_chore ?? null;
 }
 
 export async function completeChore(choreId: string, date: string): Promise<void> {

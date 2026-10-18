@@ -10,6 +10,7 @@ import { useApp } from '../state/AppContext';
 import { scheduleLabel } from '../logic/human';
 import { assigneeFor } from '../logic/rotation';
 import { DEFAULT_CHORE_FILTERS, filterChores, isRecurring, type ChoreFilters } from '../logic/chores';
+import { errorMessage } from '../logic/errors';
 import type { Chore } from '../types';
 
 const STATE_LABELS: Record<ChoreFilters['state'], string> = { active: 'Active', stopped: 'Stopped', all: 'All' };
@@ -105,7 +106,6 @@ export function ChoresScreen() {
                       {!c.active && <Pill text="stopped" tone="dim" />}
                       {overdue && <Pill text="overdue" tone="bad" />}
                       {!overdue && c.active && c.strict && <Pill text="alarm" tone="warn" />}
-                      {c.amount != null && <Pill text={`Rs ${c.amount.toLocaleString('en-PK')}`} tone="dim" />}
                       {mine(c) && <Overflow label={`Options for ${c.title}`} onPress={() => setMenuChore(c)} />}
                     </Row>
                   </Row>
@@ -181,7 +181,7 @@ export function ChoresScreen() {
 }
 
 function showErr(e: unknown) {
-  Alert.alert('Something broke', e instanceof Error ? e.message : String(e));
+  Alert.alert('Something broke', errorMessage(e));
 }
 
 const makeStyles = () => StyleSheet.create({
