@@ -4,31 +4,38 @@ import { C, S } from '../theme';
 import { useStyles } from '../components/useStyles';
 import { Screen } from '../components/Screen';
 import { ActionSheet } from '../components/ActionSheet';
-import { Card, Fab, Overflow, Pill, Row, SectionTitle, roles } from '../components/ui';
+import { Card, Fab, Overflow, Pill, Row, SectionTitle, Token, roles } from '../components/ui';
 import { ChoreModal } from '../components/ChoreModal';
 import { useApp } from '../state/AppContext';
 import { scheduleLabel } from '../logic/human';
 import { assigneeFor } from '../logic/rotation';
+import { DEFAULT_CHORE_FILTERS, filterChores, isRecurring, type ChoreFilters } from '../logic/chores';
 import type { Chore } from '../types';
 
+const STATE_LABELS: Record<ChoreFilters['state'], string> = { active: 'Active', stopped: 'Stopped', all: 'All' };
+const KIND_LABELS: Record<ChoreFilters['kind'], string> = { all: 'All', recurring: 'Repeats', once: 'One-off' };
+
 export function ChoresScreen() {
-  const { chores, members, overrides, today, memberName, actions } = useApp();
+  const { chores, members, overrides, today, me, memberName, actions } = useApp();
   const [editing, setEditing] = useState<Chore | null>(null);
   const styles = useStyles(makeStyles);
   const [addOpen, setAddOpen] = useState(false);
   const [menuChore, setMenuChore] = useState<Chore | null>(null);
   const [stopChore, setStopChore] = useState<Chore | null>(null);
+  const [filters, setFilters] = useState<ChoreFilters>(DEFAULT_CHORE_FILTERS);
+  const [picker, setPicker] = useState<'state' | 'by' | 'for' | 'kind' | null>(null);
 
-  const recurring = useMemo(
-    () => chores.filter((c) => c.active && (c.repeat_days != null || c.repeat_weekdays != null || c.repeat_monthly_day != null) && c.spawned_from == null),
-    [chores]
-  );
-  const upcoming = useMemo(
-    () => chores
-      .filter((c) => c.active && c.due_at != null && c.spawned_from == null && Date.parse(c.due_at) > Date.now() - 7 * 86400_000)
-      .sort((a, b) => Date.parse(a.due_at!) - Date.parse(b.due_at!)),
-    [chores]
-  );
+  const visible = useMemo(() => filterChores(chores, filters), [chores, filters]);
+  const recurring = visible.filter(isRecurring);
+  const oneoffs = visible
+    .filter((c) => !isRecurring(c) && c.due_at != null && Date.parse(c.due_at) > Date.now() - 7 * 86400_000)
+    .sort((a, b) => Date.parse(a.due_at!) - Date.parse(b.due_at!));
+  const emptyLine = recurring.length === 0 && oneoffs.length === 0
+    ? (chores.length === 0 ? 'No chores yet.' : 'Nothing matches these filters.')
+    : null;
+
+  // manage = edit or stop; only the chore's creator gets the menu
+  const mine = (c: Chore) => me != null && c.created_by === me.id;
 
   const scheduleLine = (c: Chore) => {
     const parts = [scheduleLabel(c)];
@@ -38,39 +45,68 @@ export function ChoresScreen() {
     } else if (c.assignee_member_id) {
       parts.push(memberName(c.assignee_member_id));
     }
+    if (c.created_by != null) parts.push(`by ${c.created_by === me?.id ? 'me' : memberName(c.created_by)}`);
     return parts.join(' · ');
   };
+
+  const setFilter = <K extends keyof ChoreFilters>(key: K, value: ChoreFilters[K]) =>
+    setFilters((f) => ({ ...f, [key]: value }));
+
+  const memberActions = (key: 'createdBy' | 'assignee') => [
+    { label: 'Anyone', active: filters[key] == null, onPress: () => setFilter(key, null) },
+    ...members.filter((m) => m.active).map((m) => ({
+      label: m.name, active: filters[key] === m.id, onPress: () => setFilter(key, m.id),
+    })),
+  ];
 
   return (
     <Screen>
       <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-        <SectionTitle>Recurring</SectionTitle>
-        {recurring.map((c) => (
-          <Card key={c.id}>
-            <Row style={{ justifyContent: 'space-between' }}>
-              <Text style={styles.title}>{c.title}</Text>
-              {c.strict && <Pill text="alarm" tone="warn" />}
-              <Overflow label={`Options for ${c.title}`} onPress={() => setMenuChore(c)} />
-            </Row>
-            <Text style={styles.meta}>{scheduleLine(c)}</Text>
-          </Card>
-        ))}
-        {recurring.length === 0 && <Text style={styles.meta}>Nothing recurring yet — add a chore below.</Text>}
+        <Row style={{ flexWrap: 'wrap' }}>
+          <Token icon="funnel-outline" label={STATE_LABELS[filters.state]} chevron
+            active={filters.state !== 'active'} onPress={() => setPicker('state')} />
+          <Token icon="create-outline" label={filters.createdBy ? `By ${memberName(filters.createdBy)}` : 'By anyone'} chevron shrink
+            active={filters.createdBy != null} onPress={() => setPicker('by')} />
+          <Token icon="person-outline" label={filters.assignee ? `For ${memberName(filters.assignee)}` : 'For anyone'} chevron shrink
+            active={filters.assignee != null} onPress={() => setPicker('for')} />
+          <Token icon="repeat-outline" label={KIND_LABELS[filters.kind]} chevron
+            active={filters.kind !== 'all'} onPress={() => setPicker('kind')} />
+        </Row>
 
-        {upcoming.length > 0 && (
+        {recurring.length > 0 && (
+          <>
+            <SectionTitle>Recurring</SectionTitle>
+            {recurring.map((c) => (
+              <Card key={c.id}>
+                <Row style={{ justifyContent: 'space-between' }}>
+                  <Text style={styles.title}>{c.title}</Text>
+                  <Row style={{ gap: 6 }}>
+                    {!c.active && <Pill text="stopped" tone="dim" />}
+                    {c.active && c.strict && <Pill text="alarm" tone="warn" />}
+                    {mine(c) && <Overflow label={`Options for ${c.title}`} onPress={() => setMenuChore(c)} />}
+                  </Row>
+                </Row>
+                <Text style={styles.meta}>{scheduleLine(c)}</Text>
+              </Card>
+            ))}
+          </>
+        )}
+
+        {oneoffs.length > 0 && (
           <>
             <SectionTitle>One-offs</SectionTitle>
-            {upcoming.map((c) => {
-              const overdue = c.due_at != null && Date.parse(c.due_at) < Date.now();
+            {oneoffs.map((c) => {
+              const overdue = c.active && c.due_at != null && Date.parse(c.due_at) < Date.now();
               return (
                 <Card key={c.id}>
                   <Row style={{ justifyContent: 'space-between' }}>
                     <Text style={styles.title}>{c.title}</Text>
                     <Row style={{ gap: 6 }}>
+                      {!c.active && <Pill text="stopped" tone="dim" />}
                       {overdue && <Pill text="overdue" tone="bad" />}
-                      {!overdue && c.strict && <Pill text="alarm" tone="warn" />}
+                      {!overdue && c.active && c.strict && <Pill text="alarm" tone="warn" />}
                       {c.amount != null && <Pill text={`Rs ${c.amount.toLocaleString('en-PK')}`} tone="dim" />}
-                      <Overflow label={`Options for ${c.title}`} onPress={() => setMenuChore(c)} />
+                      {mine(c) && <Overflow label={`Options for ${c.title}`} onPress={() => setMenuChore(c)} />}
                     </Row>
                   </Row>
                   <Text style={styles.meta}>{scheduleLine(c)}</Text>
@@ -80,8 +116,38 @@ export function ChoresScreen() {
           </>
         )}
 
+        {emptyLine && <Text style={styles.meta}>{emptyLine}</Text>}
+
         <ChoreModal visible={editing != null} editing={editing} onClose={() => setEditing(null)} />
         <ChoreModal visible={addOpen} onClose={() => setAddOpen(false)} />
+        <ActionSheet
+          visible={picker === 'state'}
+          onClose={() => setPicker(null)}
+          title="Active or stopped"
+          actions={(Object.keys(STATE_LABELS) as ChoreFilters['state'][]).map((s) => ({
+            label: STATE_LABELS[s], active: filters.state === s, onPress: () => setFilter('state', s),
+          }))}
+        />
+        <ActionSheet
+          visible={picker === 'by'}
+          onClose={() => setPicker(null)}
+          title="Made by"
+          actions={memberActions('createdBy')}
+        />
+        <ActionSheet
+          visible={picker === 'for'}
+          onClose={() => setPicker(null)}
+          title="Assigned to"
+          actions={memberActions('assignee')}
+        />
+        <ActionSheet
+          visible={picker === 'kind'}
+          onClose={() => setPicker(null)}
+          title="Repeats or one-off"
+          actions={(Object.keys(KIND_LABELS) as ChoreFilters['kind'][]).map((k) => ({
+            label: KIND_LABELS[k], active: filters.kind === k, onPress: () => setFilter('kind', k),
+          }))}
+        />
         <ActionSheet
           visible={menuChore != null}
           onClose={() => setMenuChore(null)}
@@ -89,11 +155,11 @@ export function ChoresScreen() {
           subtitle={menuChore ? scheduleLine(menuChore) : undefined}
           actions={[
             { label: 'Edit', onPress: () => setEditing(menuChore) },
-            {
-              label: menuChore?.due_at != null ? 'Cancel chore' : 'Stop chore',
+            ...(menuChore?.active ? [{
+              label: menuChore.due_at != null ? 'Cancel chore' : 'Stop chore',
               destructive: true,
               onPress: () => setStopChore(menuChore),
-            },
+            }] : []),
           ]}
         />
         <ActionSheet

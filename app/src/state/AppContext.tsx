@@ -68,7 +68,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const refresh = useCallback(async () => {
     if (!profile) return;
     try {
-      const data = await api.fetchHouseholdData(profile.householdId);
+      let p = profile;
+      // the device's member row can vanish (household rebuilt, fresh join) —
+      // then RLS hides the whole household and even the fetch fails, so the
+      // rebind via ensure_household has to cover the failed fetch too
+      const reensure = async () => {
+        p = await api.ensureHousehold('Me');
+        saveProfile(p);
+        setProfile(p);
+        return api.fetchHouseholdData(p.householdId);
+      };
+      let data = await api.fetchHouseholdData(p.householdId).catch(() => reensure());
+      if (!data.members.some((m) => m.id === p.memberId)) data = await reensure();
       setHousehold(data.household);
       setMembers(data.members);
       setChores(data.chores);
