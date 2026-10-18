@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#09090b">
+<title>Auto Work — download</title>
+<style>
+  :root { color-scheme: dark; }
+  * { margin: 0; box-sizing: border-box; }
+  body {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #09090b;
+    color: #f4f4f5;
+    font-family: -apple-system, "Segoe UI", Roboto, system-ui, sans-serif;
+    padding: 32px;
+  }
+  main { width: 100%; max-width: 420px; text-align: center; }
+  img { width: 96px; height: 96px; border-radius: 22px; }
+  h1 { font-size: 28px; font-weight: 800; letter-spacing: -0.5px; margin-top: 20px; }
+  p.lead { color: #8b8b93; font-size: 16px; line-height: 1.5; margin-top: 10px; }
+  a.btn {
+    display: block;
+    margin-top: 28px;
+    padding: 16px;
+    border-radius: 14px;
+    background: #e7e5e4;
+    color: #09090b;
+    font-size: 17px;
+    font-weight: 700;
+    text-decoration: none;
+  }
+  a.btn:active { opacity: 0.85; }
+  .meta { color: #8b8b93; font-size: 13px; margin-top: 12px; min-height: 18px; }
+  .note { color: #8b8b93; font-size: 13px; line-height: 1.5; margin-top: 28px; }
+</style>
+</head>
+<body>
+<main>
+  <img src="icon.png" alt="Auto Work">
+  <h1>Auto Work</h1>
+  <p class="lead">Chores for the whole house. Install it, open it — you're in.</p>
+  <a class="btn" id="download" href="https://github.com/faraz-35/motor/releases/latest">Download for Android</a>
+  <div class="meta" id="meta">checking the latest version…</div>
+  <p class="note">Updates arrive inside the app. On Redmi or Infinix, allow autostart and turn off battery optimization so alarms always ring.</p>
+</main>
+<script>
+  fetch('https://api.github.com/repos/faraz-35/motor/releases/latest')
+    .then((r) => r.json())
+    .then((rel) => {
+      const apk = (rel.assets || []).find((a) => a.name.endsWith('.apk'));
+      if (!apk) throw new Error('no apk');
+      document.getElementById('download').href = apk.browser_download_url;
+      const mb = Math.round(apk.size / 1e6);
+      document.getElementById('meta').textContent = `Latest: Auto Work ${rel.tag_name.replace(/^v/, '')} · ${mb} MB`;
+    })
+    .catch(() => {
+      document.getElementById('meta').textContent = 'Opens the latest release on GitHub.';
+    });
+</script>
+</body>
+</html>
