@@ -11,7 +11,7 @@ APK=app/android/app/build/outputs/apk/release/app-release.apk
 STAGED="/tmp/Auto-Work-${TAG}.apk"
 cp "$APK" "$STAGED"
 gh release create "$TAG" "$STAGED" \
-  --repo faraz-35/motor \
+  --repo faraz-35/auto-work \
   --title "Auto Work ${TAG}" \
   --notes "Download Auto-Work-${TAG}.apk on your phone and install it. The app joins your home by itself. On Redmi/Infinix, let it autostart and turn off battery optimization (Security app → Permissions → Autostart; Battery → No restrictions) so alarms always ring."
 echo "released ${TAG}"
