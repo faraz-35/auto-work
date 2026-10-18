@@ -26,10 +26,12 @@ export type Chore = {
   strict: boolean;                    // strict deadline -> native alarm on the assignee's phone
   due_at: string | null;              // ISO timestamptz for one-offs
   repeat_days: number | null;
+  repeat_weekdays: number | null;     // weekly: bitmask, bit 0 = Sunday
   repeat_monthly_day: number | null;
   time_of_day: string;                // "HH:MM:SS" recurring deadline time
   duration_minutes: number | null;    // set -> starting spawns a strict close chore
   amount: number | null;              // bill amount
+  rotation_members: string[] | null;  // rotate among these (null = everyone active)
   spawned_from: string | null;        // close chores point at their start event
   active: boolean;
   created_by: string | null;

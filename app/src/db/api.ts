@@ -62,10 +62,12 @@ export type ChoreDraft = {
   strict?: boolean;
   dueAt?: string | null;
   repeatDays?: number | null;
+  repeatWeekdays?: number | null;
   repeatMonthlyDay?: number | null;
   timeOfDay?: string | null;
   durationMinutes?: number | null;
   amount?: number | null;
+  rotationMembers?: string[] | null;
 };
 
 export async function createChore(draft: ChoreDraft): Promise<string> {
@@ -81,6 +83,8 @@ export async function createChore(draft: ChoreDraft): Promise<string> {
     p_time_of_day: draft.timeOfDay ?? null,
     p_duration_minutes: draft.durationMinutes ?? null,
     p_amount: draft.amount ?? null,
+    p_rotation_members: draft.rotationMembers ?? null,
+    p_repeat_weekdays: draft.repeatWeekdays ?? null,
   });
   if (error) throw error;
   const row = Array.isArray(data) ? data[0] : data;

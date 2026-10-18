@@ -41,12 +41,18 @@ export function formatTimeOf(iso: string): string {
 
 /** How a chore presents its schedule, everywhere. */
 export function scheduleLabel(chore: {
-  due_at: string | null; repeat_days: number | null; repeat_monthly_day: number | null; time_of_day: string;
+  due_at: string | null; repeat_days: number | null; repeat_weekdays: number | null;
+  repeat_monthly_day: number | null; time_of_day: string;
 }): string {
   if (chore.due_at) return `by ${formatDay(chore.due_at.slice(0, 10))}, ${formatTimeOf(chore.due_at)}`;
   const at = formatTime12(chore.time_of_day);
   if (chore.repeat_days === 1) return `daily at ${at}`;
   if (chore.repeat_days != null) return `every ${chore.repeat_days} days at ${at}`;
+  if (chore.repeat_weekdays != null) {
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].filter((_, d) => (chore.repeat_weekdays! & (1 << d)) !== 0);
+    const dayPart = days.length === 7 ? 'daily' : days.join(', ');
+    return `${dayPart} at ${at}`;
+  }
   if (chore.repeat_monthly_day != null) return `monthly on the ${chore.repeat_monthly_day} at ${at}`;
   return at;
 }

@@ -19,6 +19,11 @@ const fails = async (name, sql) => {
 };
 
 const uids = [1, 2, 3, 4].map(() => crypto.randomUUID());
+const occupied = (await q('select count(*)::int as n from public.households'))[0].n;
+if (occupied > 0) {
+  console.error(`refusing: ${occupied} household(s) already exist — this test owns an empty dev DB only (it truncates households). Real data lives in the shared project now.`);
+  process.exit(1);
+}
 await q('delete from public.households');  // dev DB: tests own the whole schema
 await q(`delete from auth.users where email like 'sqltest-%@motor.test'`);
 for (let i = 0; i < uids.length; i++) {

@@ -1,11 +1,11 @@
-import React, { useEffect, useState } from 'react';
-import { Keyboard, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { Animated, Keyboard, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { C, R, S, T, W } from '../theme';
 
 /** The app's one bottom sheet: dim backdrop, rounded card, title, optional
  *  subtitle, safe-area padding. Every sheet in the app is this — tapping the
- *  backdrop closes it, tapping the card does not. The card rides above the
+ *  backdrop closes it, tapping the card does not. The card glides above the
  *  keyboard (edge-to-edge Android ignores adjustResize, so we lift it here). */
 export function Sheet({
   visible, onClose, title, subtitle, scroll, style, children,
@@ -20,25 +20,28 @@ export function Sheet({
   children: React.ReactNode;
 }) {
   const insets = useSafeAreaInsets();
-  const [keyboard, setKeyboard] = useState(0);
+  const lift = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    const didShow = Keyboard.addListener('keyboardDidShow', (e) => setKeyboard(e.endCoordinates.height));
-    const didHide = Keyboard.addListener('keyboardDidHide', () => setKeyboard(0));
+    const didShow = Keyboard.addListener('keyboardDidShow', (e) =>
+      Animated.timing(lift, { toValue: e.endCoordinates.height, duration: 220, useNativeDriver: true }).start());
+    const didHide = Keyboard.addListener('keyboardDidHide', () =>
+      Animated.timing(lift, { toValue: 0, duration: 200, useNativeDriver: true }).start());
     return () => { didShow.remove(); didHide.remove(); };
-  }, []);
+  }, [lift]);
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <Pressable style={s.backdrop} onPress={onClose}>
-        <Pressable
+        <Animated.View
           style={[
             s.sheet,
-            { paddingBottom: S.sheetBottom + insets.bottom, marginBottom: keyboard },
+            { paddingBottom: S.sheetBottom + insets.bottom },
+            { transform: [{ translateY: Animated.multiply(lift, -1) }] },
             style,
           ]}
-          onPress={() => undefined}
         >
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => undefined} />
           {title ? <Text style={s.title}>{title}</Text> : null}
           {subtitle ? <Text style={s.subtitle}>{subtitle}</Text> : null}
           {scroll ? (
@@ -48,7 +51,7 @@ export function Sheet({
           ) : (
             children
           )}
-        </Pressable>
+        </Animated.View>
       </Pressable>
     </Modal>
   );

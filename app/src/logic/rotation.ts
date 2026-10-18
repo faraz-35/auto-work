@@ -41,6 +41,9 @@ export function occursOn(chore: Chore, dateStr: string): boolean {
     const day = dayNumber(dateStr);
     return day >= anchor && (day - anchor) % chore.repeat_days === 0;
   }
+  if (chore.repeat_weekdays != null) {
+    return (chore.repeat_weekdays & (1 << new Date(dateStr + 'T00:00:00Z').getUTCDay())) !== 0;
+  }
   if (chore.repeat_monthly_day != null) return Number(dateStr.slice(8, 10)) === chore.repeat_monthly_day;
   return false;
 }
@@ -73,7 +76,8 @@ export function assigneeFor(
     if (m) return m;
   }
   if (chore.rotate) {
-    const active = activeMembersSorted(members);
+    const pool = chore.rotation_members;
+    const active = activeMembersSorted(members).filter((m) => !pool || pool.includes(m.id));
     if (active.length === 0) return null;
     const idx = ((dayNumber(dateStr) + chore.rotation_offset) % active.length + active.length) % active.length;
     return active[idx] ?? null;

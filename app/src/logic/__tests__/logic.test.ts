@@ -66,6 +66,14 @@ describe('occursOn', () => {
     expect(occursOn(c, '2026-11-25')).toBe(true);
   });
 
+  test('weekly chore occurs on its picked weekdays', () => {
+    const c = chore('weekly', { repeat_weekdays: (1 << 0) | (1 << 6) });  // Sunday + Saturday
+    expect(occursOn(c, '2026-10-17')).toBe(true);   // Saturday
+    expect(occursOn(c, '2026-10-18')).toBe(true);   // Sunday
+    expect(occursOn(c, '2026-10-19')).toBe(false);  // Monday
+    expect(nextOccurrence(c, '2026-10-17')).toBe('2026-10-18');
+  });
+
   test('one-off occurs on its Karachi due date only', () => {
     const c = chore('one', { due_at: '2026-10-17T18:00:00+05:00' });
     expect(occursOn(c, '2026-10-17')).toBe(true);
@@ -96,6 +104,16 @@ describe('assigneeFor', () => {
     const zero = assigneeFor(chore('r0', { rotate: true, rotation_offset: 0 }), d, members, {})!.id;
     const one = assigneeFor(chore('r1', { rotate: true, rotation_offset: 1 }), d, members, {})!.id;
     expect(zero).not.toBe(one);
+  });
+
+  test('rotation pool leaves out everyone else', () => {
+    const c = chore('pool', { rotate: true, rotation_members: ['a', 'c'] });
+    for (let i = 0; i < 7; i++) {
+      const owner = assigneeFor(c, addDays('2026-08-30', i), members, {})!.id;
+      expect(['a', 'c']).toContain(owner);
+    }
+    expect(assigneeFor(c, '2026-08-30', members, {})!.id)
+      .not.toBe(assigneeFor(c, '2026-08-31', members, {})!.id);
   });
 
   test('fixed assignee wins when not rotating', () => {
@@ -273,6 +291,10 @@ describe('human dates', () => {
       .toBe('every 3 days at 7:15 AM');
     expect(scheduleLabel({ due_at: null, repeat_days: null, repeat_monthly_day: 25, time_of_day: '09:00:00' }))
       .toBe('monthly on the 25 at 9:00 AM');
+    expect(scheduleLabel({ due_at: null, repeat_days: null, repeat_weekdays: (1 << 1) | (1 << 4), repeat_monthly_day: null, time_of_day: '18:00:00' }))
+      .toBe('Mon, Thu at 6:00 PM');
+    expect(scheduleLabel({ due_at: null, repeat_days: null, repeat_weekdays: 127, repeat_monthly_day: null, time_of_day: '18:00:00' }))
+      .toBe('daily at 6:00 PM');
   });
 });
 

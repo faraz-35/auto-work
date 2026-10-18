@@ -18,7 +18,7 @@ export function ChoresScreen() {
   const [stopChore, setStopChore] = useState<Chore | null>(null);
 
   const recurring = useMemo(
-    () => chores.filter((c) => c.active && (c.repeat_days != null || c.repeat_monthly_day != null) && c.spawned_from == null),
+    () => chores.filter((c) => c.active && (c.repeat_days != null || c.repeat_weekdays != null || c.repeat_monthly_day != null) && c.spawned_from == null),
     [chores]
   );
   const upcoming = useMemo(
