@@ -11,7 +11,7 @@ import { houseStats, type ChoreState } from '../logic/stats';
 import { addDays } from '../logic/rotation';
 import { formatDay, formatDayMonth, formatShortDate, formatTimeOf } from '../logic/human';
 
-const RANGES = [7, 30, 90];
+const RANGES = [1, 7, 30, 90];  // 1 = today — the old Today tab lives here
 const EARLIEST_OFFSET = 91;  // the fetch window keeps 92 days of history
 
 const STATE_LABELS: Record<ChoreState, string> = {
@@ -43,7 +43,9 @@ export function AnalyticsScreen() {
   const pickableChores = chores.filter((c) => c.active);
   const personLabel = person ? memberName(person) : 'Everyone';
   const choreLabel = choreId ? chores.find((c) => c.id === choreId)?.title ?? 'All chores' : 'All chores';
-  const rangeLabel = custom ? `${formatDayMonth(from)} – ${formatDayMonth(to)}` : `${days} days`;
+  const rangeLabel = custom
+    ? `${formatDayMonth(from)} – ${formatDayMonth(to)}`
+    : days === 1 ? 'Today' : `${days} days`;
 
   const count = status == null ? stats.done : status === 'open' ? stats.left : stats[status];
   const bigLine =
@@ -182,10 +184,10 @@ export function AnalyticsScreen() {
         />
         <Sheet visible={picker === 'days'} onClose={() => setPicker(null)} title="How far back">
           <Segmented
-            options={['7 days', '30 days', '90 days', 'Custom']}
-            index={custom ? 3 : RANGES.indexOf(days)}
+            options={['Today', '7 days', '30 days', '90 days', 'Custom']}
+            index={custom ? 4 : RANGES.indexOf(days)}
             onChange={(i) => {
-              if (i < 3) {
+              if (i < 4) {
                 setCustom(null);
                 setDays(RANGES[i]);
                 setPicker(null);

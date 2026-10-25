@@ -10,3 +10,7 @@ export async function loadProfile(): Promise<Profile | null> {
 export function saveProfile(profile: Profile): void {
   void AsyncStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
 }
+
+export function clearProfile(): void {
+  void AsyncStorage.removeItem(PROFILE_KEY);
+}

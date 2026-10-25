@@ -109,9 +109,11 @@ export function HomeScreen() {
                 </Text>
               </Row>
               <Btn title="Done" compact onPress={() => guard(() => actions.completeChore(c.id))} />
+              {/* parked — swap logic (SwapModal below, requests feed) stays; only this entry point is hidden
               {(c.rotate || c.repeat_days != null) && (
                 <Btn title="I can't — ask someone else" kind="link" onPress={() => setSwapFor(c)} />
               )}
+              */}
             </Card>
           );
         })}

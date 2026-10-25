@@ -10,10 +10,10 @@ import { errorMessage } from '../logic/errors';
 import { ensureDeviceSession } from '../db/client';
 import * as api from '../db/api';
 import { loadSnapshot, saveSnapshot, type SnapshotData } from './snapshot';
-import { loadProfile, saveProfile } from './profile';
+import { clearProfile, loadProfile, saveProfile } from './profile';
 import { watchHousehold } from './realtime';
 
-type Phase = 'boot' | 'error' | 'ready';
+type Phase = 'boot' | 'pick' | 'error' | 'ready';
 
 type AppState = {
   phase: Phase;
@@ -33,6 +33,7 @@ type AppState = {
   refresh: () => Promise<void>;
   actions: {
     retry: () => void;
+    claimIdentity: (memberId: string) => Promise<void>;
     completeChore: (choreId: string, date?: string) => void;
     skipChore: (choreId: string) => void;
     saveChore: (draft: ChoreDraft) => Promise<void>;
@@ -67,18 +68,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const refresh = useCallback(async () => {
     if (!profile) return;
     try {
-      let p = profile;
-      // the device's member row can vanish (household rebuilt, fresh join) —
-      // then RLS hides the whole household and even the fetch fails, so the
-      // rebind via ensure_household has to cover the failed fetch too
-      const reensure = async () => {
-        p = await api.ensureHousehold('Me');
-        saveProfile(p);
-        setProfile(p);
-        return api.fetchHouseholdData(p.householdId);
-      };
-      let data = await api.fetchHouseholdData(p.householdId).catch(() => reensure());
-      if (!data.members.some((m) => m.id === p.memberId)) data = await reensure();
+      // a dead binding makes the fetch fail like a permission error; a working
+      // roster call proves the session is fine and the device is just nobody
+      // — then it goes back to the who-are-you screen
+      let data = await api.fetchHouseholdData(profile.householdId).catch(() => null);
+      if (data && !data.members.some((m) => m.id === profile.memberId)) data = null;
+      if (!data) {
+        await api.householdRoster();
+        clearProfile();
+        setProfile(null);
+        setPhase('pick');
+        return;
+      }
       setHousehold(data.household);
       setMembers(data.members);
       setChores(data.chores);
@@ -94,20 +95,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       };
       saveSnapshot(snapshot);
     } catch (e) {
-      setError(errorMessage(e));
+      setError(errorMessage(e));  // offline: keep showing the snapshot
     }
   }, [profile]);
 
-  // bootstrap: cached profile + snapshot render instantly; otherwise the
-  // device signs itself in and joins the household invisibly under a default
-  // name (members are renamed from the admin side). The user sees no setup.
+  // bootstrap: the device signs itself in invisibly. With a saved profile it
+  // renders straight from the cached snapshot; without one it asks "who are
+  // you?" — the picked person's data loads from there. No name is invented.
   useEffect(() => {
     (async () => {
       try {
         const [cachedProfile, snapshot] = await Promise.all([loadProfile(), loadSnapshot()]);
         await ensureDeviceSession();
-        const p = cachedProfile ?? await api.ensureHousehold('Me');
-        if (!cachedProfile) saveProfile(p);
         if (snapshot) {
           setHousehold(snapshot.household);
           setMembers(snapshot.members);
@@ -117,8 +116,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           setSwaps(snapshot.swaps ?? []);
           setStale(true);
         }
-        setProfile(p);
-        setPhase('ready');
+        setProfile(cachedProfile);
+        setPhase(cachedProfile ? 'ready' : 'pick');
       } catch (e) {
         setError(errorMessage(e));
         setPhase('error');
@@ -190,6 +189,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setError(null);
       setPhase('boot');
       setReloadKey((k) => k + 1);
+    },
+
+    async claimIdentity(memberId) {
+      const p = await api.claimMember(memberId);
+      saveProfile(p);
+      setError(null);
+      setProfile(p);
+      setPhase('ready');
     },
 
     completeChore(choreId, date = today) {

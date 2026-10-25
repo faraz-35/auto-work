@@ -8,7 +8,7 @@ import { C, T, W, getScheme, setScheme, themeEpoch } from './theme';
 import { ThemeEpoch, useStyles } from './components/useStyles';
 import { AppProvider, useApp } from './state/AppContext';
 import { HomeScreen } from './screens/HomeScreen';
-import { TodayScreen } from './screens/TodayScreen';
+import { WhoScreen } from './screens/WhoScreen';
 import { AnalyticsScreen } from './screens/AnalyticsScreen';
 import { ChoresScreen } from './screens/ChoresScreen';
 import { LedgerScreen } from './screens/LedgerScreen';
@@ -17,8 +17,7 @@ import { UpdatePrompt } from './update/UpdatePrompt';
 const Tabs = createBottomTabNavigator();
 
 const TAB_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
-  Home: 'home-outline',
-  Today: 'today-outline',
+  You: 'person-circle-outline',
   Analytics: 'stats-chart-outline',
   Chores: 'checkbox-outline',
   Ledger: 'receipt-outline',
@@ -35,6 +34,10 @@ function Root() {
         <Text style={styles.bootText}>waking this phone up…</Text>
       </View>
     );
+  }
+
+  if (phase === 'pick') {
+    return <WhoScreen />;
   }
 
   if (phase === 'error') {
@@ -58,14 +61,9 @@ function Root() {
         }}
       >
           <Tabs.Screen
-          name="Home"
+          name="You"
         component={HomeScreen}
-        options={{ tabBarIcon: ({ color, size }) => <Ionicons name={TAB_ICONS.Home} color={color} size={size} /> }}
-      />
-        <Tabs.Screen
-          name="Today"
-        component={TodayScreen}
-        options={{ tabBarIcon: ({ color, size }) => <Ionicons name={TAB_ICONS.Today} color={color} size={size} /> }}
+        options={{ tabBarIcon: ({ color, size }) => <Ionicons name={TAB_ICONS.You} color={color} size={size} /> }}
       />
         <Tabs.Screen
           name="Analytics"

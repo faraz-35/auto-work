@@ -8,5 +8,7 @@ export const RELEASES_API = 'https://api.github.com/repos/faraz-35/auto-work/rel
 export const TIMEZONE = 'Asia/Karachi';
 /** Karachi is UTC+5 with no DST; used to compose "date + time_of_day" stamps. */
 export const TZ_OFFSET = '+05:00';
-export const PROFILE_KEY = 'ghar.profile';
+/** v2 bumps the key so every phone asks "who are you" once after the update. */
+export const PROFILE_KEY = 'ghar.profile.v2';
 export const SNAPSHOT_KEY = 'ghar.snapshot';
+export const CHORE_DRAFT_KEY = 'ghar.choreDraft';

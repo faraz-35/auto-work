@@ -44,10 +44,21 @@ export async function fetchHouseholdData(householdId: string): Promise<Household
   };
 }
 
-// ---- the no-login flow: claim device silently, get or create the household ----
+// ---- the no-login flow: this phone picks its person from the roster ----
 
-export async function ensureHousehold(name: string): Promise<Profile> {
-  const { data, error } = await db.rpc('ensure_household', { p_name: name });
+export type RosterEntry = { id: string; name: string };
+
+export async function householdRoster(): Promise<RosterEntry[]> {
+  const { data, error } = await db.rpc('household_roster');
+  if (error) throw error;
+  const rows = Array.isArray(data) ? data : [];
+  return rows.map((r) => ({ id: r.out_member, name: r.out_name }));
+}
+
+/** Bind this device to the picked person. Works on a fresh device and
+ *  re-binds one that lost its person (the auth accounts swap rows). */
+export async function claimMember(memberId: string): Promise<Profile> {
+  const { data, error } = await db.rpc('claim_member', { p_member: memberId });
   if (error) throw error;
   const row = Array.isArray(data) ? data[0] : data;
   return { householdId: row.out_household, memberId: row.out_member };

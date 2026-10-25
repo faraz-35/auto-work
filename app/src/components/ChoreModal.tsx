@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Alert, StyleSheet, TextInput, View } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { C, T, W } from '../theme';
 import { useStyles } from './useStyles';
 import { Btn, Chip, IconField, Row, Token } from './ui';
 import { Sheet } from './Sheet';
 import { WhenEditor, ordinal, type Schedule } from './WhenEditor';
 import { ChoreDraft } from '../db/api';
+import { CHORE_DRAFT_KEY } from '../config';
 import type { Chore } from '../types';
 import { useApp } from '../state/AppContext';
 import { localDate } from '../logic/rotation';
@@ -35,6 +37,29 @@ const freshSchedule = (): Schedule => {
   };
 };
 
+type Draft = {
+  title: string;
+  note: string;
+  people: string[];
+  rotate: boolean;
+  strict: boolean;
+  schedule: Schedule;
+};
+
+/** The half-written add form, kept in storage so a stray tap outside the
+ *  sheet loses nothing. Null when nothing was saved (or it can't parse). */
+const loadDraft = async (): Promise<Draft | null> => {
+  try {
+    const raw = await AsyncStorage.getItem(CHORE_DRAFT_KEY);
+    if (!raw) return null;
+    const d = JSON.parse(raw) as Draft;
+    if (typeof d?.title !== 'string' || !Array.isArray(d?.people)) return null;
+    return { ...d, schedule: { ...freshSchedule(), ...d.schedule } };
+  } catch {
+    return null;
+  }
+};
+
 type Props = {
   visible: boolean;
   onClose: () => void;
@@ -58,11 +83,12 @@ export function ChoreModal({ visible, onClose, editing = null }: Props) {
   const [schedule, setSchedule] = useState<Schedule>(freshSchedule);
   const [open, setOpen] = useState<'who' | 'when' | 'more' | null>(null);
   const [busy, setBusy] = useState(false);
+  const [ready, setReady] = useState(false);  // draft restored — persisting may start
 
   useEffect(() => {
     if (!visible) return;
-    const s = freshSchedule();
     if (editing) {
+      const s = freshSchedule();
       setTitle(editing.title);
       setNote(editing.note ?? '');
       if (editing.rotate) {
@@ -88,13 +114,41 @@ export function ChoreModal({ visible, onClose, editing = null }: Props) {
         s.time = editing.time_of_day.slice(0, 5) || '18:00';
       }
       setStrict(editing.strict);
-    } else {
-      setTitle(''); setNote(''); setRotate(true); setPeople([]);
-      setStrict(false);
+      setSchedule(s);
+      setOpen(null);
+      return;
     }
-    setSchedule(s);
+    // create: bring back whatever was typed before the sheet closed
+    let alive = true;
     setOpen(null);
+    loadDraft().then((d) => {
+      if (!alive) return;
+      if (d) {
+        setTitle(d.title);
+        setNote(d.note);
+        setPeople(d.people);
+        setRotate(d.rotate);
+        setStrict(d.strict);
+        setSchedule(d.schedule);
+      } else {
+        setTitle('');
+        setNote('');
+        setPeople([]);
+        setRotate(true);
+        setStrict(false);
+        setSchedule(freshSchedule());
+      }
+      setReady(true);
+    });
+    return () => { alive = false; setReady(false); };
   }, [visible, editing]);
+
+  // persist every change so the draft survives the sheet closing by accident
+  useEffect(() => {
+    if (!visible || editing || !ready) return;
+    const draft: Draft = { title, note, people, rotate, strict, schedule };
+    void AsyncStorage.setItem(CHORE_DRAFT_KEY, JSON.stringify(draft)).catch(() => undefined);
+  }, [visible, editing, ready, title, note, people, rotate, strict, schedule]);
 
   const nameOf = (id: string) => members.find((m) => m.id === id)?.name ?? '?';
   const togglePerson = (id: string) =>
@@ -167,6 +221,7 @@ export function ChoreModal({ visible, onClose, editing = null }: Props) {
       } else {
         const drafts = rotate ? [base] : people.map((id) => ({ ...base, assigneeMemberId: id }));
         for (const d of drafts) await actions.saveChore(d);
+        void AsyncStorage.removeItem(CHORE_DRAFT_KEY).catch(() => undefined);
       }
       onClose();
     } catch (e) {
