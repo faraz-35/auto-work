@@ -2,7 +2,7 @@
   "expo": {
     "name": "Auto Work",
     "slug": "motor",
-    "version": "2.0.18",
+    "version": "2.0.19",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -12,7 +12,7 @@
     },
     "android": {
       "package": "com.faraz.motor",
-      "versionCode": 21,
+      "versionCode": 22,
       "permissions": [
         "REQUEST_INSTALL_PACKAGES"
       ],

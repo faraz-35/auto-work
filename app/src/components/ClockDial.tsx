@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
 import { C, R, T, W } from '../theme';
 import { useStyles } from './useStyles';
@@ -14,9 +14,10 @@ const label = (i: number, stage: 'hour' | 'minute'): string =>
 
 /** The circular clock — drag or tap the hour, it advances to minutes; the
  *  center dot switches back. "HH:MM" (24h) comes out live, minutes snap to 5. */
-export function ClockDial({ time, onChange }: {
+export function ClockDial({ time, onChange, below }: {
   time: string;
   onChange: (time: string) => void;
+  below?: ReactNode;
 }) {
   const styles = useStyles(makeStyles);
   const init = splitTime(time);
@@ -119,6 +120,7 @@ export function ClockDial({ time, onChange }: {
             </Pressable>
           );
         })}
+        {below}
       </View>
     </View>
   );

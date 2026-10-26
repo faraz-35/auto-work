@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { C, R, S, T, W } from '../theme';
@@ -6,7 +6,6 @@ import { useStyles } from './useStyles';
 import { Stepper } from './ui';
 import { ClockDial } from './ClockDial';
 import { addDays, localDate } from '../logic/rotation';
-import { formatTime12 } from '../logic/human';
 
 export type Schedule = {
   kind: 'once' | 'repeat';
@@ -25,18 +24,10 @@ export const ordinal = (n: number) =>
 const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 export const DOW_LETTER = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
-/** Helping shortcuts — one tap to a human time, fine-tune with the stepper. */
-const PRESETS: [keyof typeof Ionicons.glyphMap, string][] = [
-  ['sunny-outline', '09:00'],
-  ['partly-sunny-outline', '18:00'],
-  ['moon-outline', '21:00'],
-];
-
 const dayOf = (dateStr: string) => new Date(dateStr + 'T00:00:00Z').getUTCDay();
 
-/** The whole schedule in one control: once or repeat, the day(s), the time —
- *  and the alarm toggle lives with the time it rings at. Preset icons sit
- *  left; the exact time spins open the snap wheels. */
+/** The whole schedule in one control: once or repeat, the day(s), then the
+ *  clock — always open, with the alarm toggle beside AM/PM. */
 export function WhenEditor({ value, onChange, strict, onStrictChange }: {
   value: Schedule;
   onChange: (s: Schedule) => void;
@@ -46,7 +37,6 @@ export function WhenEditor({ value, onChange, strict, onStrictChange }: {
   const set = (patch: Partial<Schedule>) => onChange({ ...value, ...patch });
   const styles = useStyles(makeStyles);
   const stripRef = useRef<ScrollView>(null);
-  const [dialOpen, setDialOpen] = useState(false);
   const today = localDate();
   const days = Array.from({ length: 14 }, (_, i) => addDays(today, i));
 
@@ -161,50 +151,25 @@ export function WhenEditor({ value, onChange, strict, onStrictChange }: {
         </>
       )}
 
-      <View style={styles.timeRow}>
-        <View style={styles.presets}>
-          {PRESETS.map(([icon, t]) => {
-            const on = value.time === t;
-            return (
-              <Pressable
-                key={t}
-                accessibilityRole="button"
-                accessibilityLabel={`${t === '09:00' ? 'Morning' : t === '18:00' ? 'Evening' : 'Night'}, ${formatTime12(t)}`}
-                accessibilityState={{ selected: on }}
-                onPress={() => set({ time: t })}
-                style={[styles.preset, on && styles.presetOn]}
-              >
-                <Ionicons name={icon} size={16} color={on ? C.accent : C.dim} />
-              </Pressable>
-            );
-          })}
-        </View>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`Time, ${formatTime12(value.time)}. Tap to change.`}
-          accessibilityState={{ expanded: dialOpen }}
-          onPress={() => setDialOpen(!dialOpen)}
-          style={[styles.timeField, dialOpen && styles.timeFieldOn]}
-        >
-          <Ionicons name="time-outline" size={15} color={dialOpen ? C.accent : C.dim} />
-          <Text style={styles.timeText}>{formatTime12(value.time)}</Text>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={strict ? 'Alarm rings at the deadline — tap to turn off' : 'No alarm — tap to ring one at the deadline'}
-          accessibilityState={{ selected: strict }}
-          onPress={() => onStrictChange(!strict)}
-          style={[styles.preset, strict && styles.alarmOn]}
-        >
-          <Ionicons
-            name={strict ? 'notifications' : 'notifications-off-outline'}
-            size={16}
-            color={strict ? C.warn : C.dim}
-          />
-        </Pressable>
-      </View>
-
-      {dialOpen && <ClockDial time={value.time} onChange={(t) => set({ time: t })} />}
+      <ClockDial
+        time={value.time}
+        onChange={(t) => set({ time: t })}
+        below={
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={strict ? 'Alarm rings at the deadline — tap to turn off' : 'No alarm — tap to ring one at the deadline'}
+            accessibilityState={{ selected: strict }}
+            onPress={() => onStrictChange(!strict)}
+            style={[styles.alarmBtn, strict && styles.alarmOn]}
+          >
+            <Ionicons
+              name={strict ? 'notifications' : 'notifications-off-outline'}
+              size={16}
+              color={strict ? C.warn : C.dim}
+            />
+          </Pressable>
+        }
+      />
     </View>
   );
 }
@@ -258,30 +223,12 @@ const makeStyles = () => StyleSheet.create({
     borderColor: 'transparent',
   },
   dowText: { color: C.dim, fontSize: T.body, fontWeight: W.semibold },
-  timeRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  presets: { flexDirection: 'row', gap: 6 },
-  timeField: {
-    marginLeft: 'auto',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: C.inputBg,
-    borderRadius: R.pill,
-    height: 34,
-    paddingHorizontal: 12,
-  },
-  timeFieldOn: { backgroundColor: C.accentBg, borderWidth: 1, borderColor: C.border },
-  timeText: { color: C.text, fontSize: T.body, fontWeight: W.semibold, fontVariant: ['tabular-nums'] },
-  preset: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+  alarmBtn: {
     alignItems: 'center',
     justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: R.pill,
     backgroundColor: C.cardRaised,
-    borderWidth: 1,
-    borderColor: 'transparent',
   },
-  presetOn: { borderColor: C.accent, backgroundColor: C.accentBg },
-  alarmOn: { borderColor: C.warn, backgroundColor: C.warnBg },
+  alarmOn: { backgroundColor: C.warnBg },
 });
