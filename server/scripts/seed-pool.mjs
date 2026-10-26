@@ -8,7 +8,7 @@ const URL_ = env.SUPABASE_URL;
 const SERVICE = env.SUPABASE_SERVICE_KEY;
 if (!SERVICE) { console.error('SUPABASE_SERVICE_KEY missing from server/.env'); process.exit(1); }
 
-const POOL_SIZE = 12;
+const POOL_SIZE = 24;
 
 // drop the SQL-seeded users that predate admin-API seeding
 await query(`delete from auth.users where email like 'devpool-%' and instance_id is null`);
