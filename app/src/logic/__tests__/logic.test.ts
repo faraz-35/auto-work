@@ -2,6 +2,7 @@ import {
   addDays, assigneeFor, dayNumber, eventFor, localDate, nextOccurrence, occursOn, overrideKey,
 } from '../rotation';
 import { alarmsToNativeJson, computeDesiredAlarms, deadlineMs, formatRemaining } from '../alarms';
+import { angleOf, handAngle, hourAt, joinTime, minuteAt, splitTime } from '../clock';
 import { formatPKR, groupByMonth, memberTotals, monthKey } from '../ledger';
 import { isNewer, parseVersion } from '../version';
 import type { Chore, ChoreEvent, Member } from '../../types';
@@ -318,5 +319,43 @@ describe('version compare (updater)', () => {
   test('isNewer rejects malformed input as not-newer', () => {
     expect(isNewer('latest', '2.0.4')).toBe(false);
     expect(isNewer('v2.0.5', 'unknown')).toBe(false);
+  });
+});
+
+describe('clock dial math', () => {
+  it('reads angles clockwise from 12', () => {
+    expect(angleOf(0, -1)).toBe(0);      // up = 12 o'clock
+    expect(angleOf(1, 0)).toBe(90);      // right = 3
+    expect(angleOf(0, 1)).toBe(180);     // down = 6
+    expect(angleOf(-1, 0)).toBe(270);    // left = 9
+  });
+
+  it('snaps angle to hour and 5-step minute', () => {
+    expect(hourAt(0)).toBe(12);
+    expect(hourAt(14)).toBe(12);         // rounds, doesn't floor
+    expect(hourAt(15)).toBe(1);          // half-way snaps to the next hour
+    expect(hourAt(90)).toBe(3);
+    expect(hourAt(359)).toBe(12);
+    expect(minuteAt(0)).toBe(0);
+    expect(minuteAt(31)).toBe(5);
+    expect(minuteAt(180)).toBe(30);
+    expect(minuteAt(344)).toBe(55);
+    expect(minuteAt(345)).toBe(0);       // wrap midpoint rounds to the hour
+  });
+
+  it('hands sit on the picked value', () => {
+    expect(handAngle(12, 0, 'hour')).toBe(0);
+    expect(handAngle(7, 0, 'hour')).toBe(210);
+    expect(handAngle(6, 30, 'minute')).toBe(180);
+  });
+
+  it('round-trips 24h times through split/join', () => {
+    expect(splitTime('18:00')).toEqual({ h: 6, m: 0, pm: true });
+    expect(splitTime('00:30')).toEqual({ h: 12, m: 30, pm: false });
+    expect(splitTime('12:05')).toEqual({ h: 12, m: 5, pm: true });
+    expect(splitTime('09:47')).toEqual({ h: 9, m: 45, pm: false });  // snaps to 5
+    expect(joinTime(6, 0, true)).toBe('18:00');
+    expect(joinTime(12, 30, false)).toBe('00:30');
+    expect(joinTime(12, 5, true)).toBe('12:05');
   });
 });

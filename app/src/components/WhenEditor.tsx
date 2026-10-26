@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { C, R, S, T, W } from '../theme';
 import { useStyles } from './useStyles';
 import { Stepper } from './ui';
-import { TimeWheels } from './TimeWheels';
+import { ClockDial } from './ClockDial';
 import { addDays, localDate } from '../logic/rotation';
 import { formatTime12 } from '../logic/human';
 
@@ -46,7 +46,7 @@ export function WhenEditor({ value, onChange, strict, onStrictChange }: {
   const set = (patch: Partial<Schedule>) => onChange({ ...value, ...patch });
   const styles = useStyles(makeStyles);
   const stripRef = useRef<ScrollView>(null);
-  const [wheelsOpen, setWheelsOpen] = useState(false);
+  const [dialOpen, setDialOpen] = useState(false);
   const today = localDate();
   const days = Array.from({ length: 14 }, (_, i) => addDays(today, i));
 
@@ -182,11 +182,11 @@ export function WhenEditor({ value, onChange, strict, onStrictChange }: {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`Time, ${formatTime12(value.time)}. Tap to change.`}
-          accessibilityState={{ expanded: wheelsOpen }}
-          onPress={() => setWheelsOpen(!wheelsOpen)}
-          style={[styles.timeField, wheelsOpen && styles.timeFieldOn]}
+          accessibilityState={{ expanded: dialOpen }}
+          onPress={() => setDialOpen(!dialOpen)}
+          style={[styles.timeField, dialOpen && styles.timeFieldOn]}
         >
-          <Ionicons name="time-outline" size={15} color={wheelsOpen ? C.accent : C.dim} />
+          <Ionicons name="time-outline" size={15} color={dialOpen ? C.accent : C.dim} />
           <Text style={styles.timeText}>{formatTime12(value.time)}</Text>
         </Pressable>
         <Pressable
@@ -204,7 +204,7 @@ export function WhenEditor({ value, onChange, strict, onStrictChange }: {
         </Pressable>
       </View>
 
-      {wheelsOpen && <TimeWheels time={value.time} onChange={(t) => set({ time: t })} />}
+      {dialOpen && <ClockDial time={value.time} onChange={(t) => set({ time: t })} />}
     </View>
   );
 }
