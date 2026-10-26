@@ -13,7 +13,11 @@ class AlarmActionReceiver : BroadcastReceiver() {
       AlarmScheduler.ACTION_SNOOZE -> {
         val id = intent.getStringExtra(AlarmScheduler.EXTRA_SNOOZE_ID) ?: return
         NotificationManagerCompat.from(context).cancel(AlarmScheduler.notifId(id))
-        AlarmScheduler.snooze(context, id, intent.getIntExtra("minutes", 5))
+        AlarmScheduler.snooze(
+          context, id, intent.getIntExtra("minutes", 5),
+          intent.getStringExtra(AlarmReceiver.EXTRA_SNOOZE_TITLE),
+          intent.getStringExtra(AlarmReceiver.EXTRA_SNOOZE_BODY),
+        )
       }
     }
   }

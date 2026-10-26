@@ -152,10 +152,12 @@ object AlarmScheduler {
     }
   }
 
-  fun snooze(ctx: Context, id: String, minutes: Int) {
+  fun snooze(ctx: Context, id: String, minutes: Int, title: String? = null, body: String? = null) {
     val current = alarms(ctx).toMutableMap()
-    val entry = current[id] ?: return
     val at = System.currentTimeMillis() + minutes * 60_000L
+    // one-offs retire the moment they fire — the notification's snooze button
+    // is the only thing left carrying them, so rebuild the entry from it
+    val entry = current[id] ?: Alarm(id, at, title ?: return, body ?: "", false)
     current[id] = entry.copy(at = at)
     save(ctx, current)
     arm(ctx, id, entry, at)

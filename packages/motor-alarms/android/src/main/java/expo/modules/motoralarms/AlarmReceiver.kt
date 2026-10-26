@@ -17,6 +17,8 @@ class AlarmReceiver : BroadcastReceiver() {
     const val EXTRA_TITLE = "title"
     const val EXTRA_BODY = "body"
     const val EXTRA_RECHAIN = "rechain"
+    const val EXTRA_SNOOZE_TITLE = "snooze_title"
+    const val EXTRA_SNOOZE_BODY = "snooze_body"
   }
 
   override fun onReceive(context: Context, intent: Intent) {
@@ -46,6 +48,8 @@ class AlarmReceiver : BroadcastReceiver() {
       Intent(context, AlarmActionReceiver::class.java)
         .setAction(AlarmScheduler.ACTION_SNOOZE)
         .putExtra(AlarmScheduler.EXTRA_SNOOZE_ID, alarm.id)
+        .putExtra(EXTRA_SNOOZE_TITLE, alarm.title)
+        .putExtra(EXTRA_SNOOZE_BODY, alarm.body)
         .putExtra("minutes", AlarmScheduler.snoozeMinutes(context)),
       PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
     )
