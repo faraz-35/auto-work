@@ -173,20 +173,21 @@ export function Stepper({
 }
 
 /** Boxed text input with a leading icon — the labeled Field, collapsed
- *  into one line. */
+ *  into one line. `multiline` grows it to two fixed lines. */
 export function IconField({
-  icon, value, onChangeText, placeholder, style,
+  icon, value, onChangeText, placeholder, style, multiline,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   value: string;
   onChangeText: (s: string) => void;
   placeholder?: string;
   style?: StyleProp<ViewStyle>;
+  multiline?: boolean;
 }) {
   const styles = useStyles(makeStyles);
   return (
-    <View style={[styles.iconField, style]}>
-      <Ionicons name={icon} size={16} color={C.dim} />
+    <View style={[styles.iconField, multiline && styles.iconFieldMulti, style]}>
+      <Ionicons name={icon} size={16} color={C.dim} style={multiline && styles.iconTop} />
       <TextInput
         style={styles.iconFieldInput}
         value={value}
@@ -195,6 +196,8 @@ export function IconField({
         placeholderTextColor={C.dim}
         autoCapitalize="sentences"
         autoCorrect={false}
+        multiline={multiline}
+        textAlignVertical={multiline ? 'top' : undefined}
       />
     </View>
   );
@@ -417,6 +420,8 @@ const makeStyles = () =>
       paddingHorizontal: 12,
       height: 42,
     },
+    iconFieldMulti: { height: 70, alignItems: 'flex-start' },
+    iconTop: { marginTop: 12 },
     iconFieldInput: { flex: 1, color: C.text, fontSize: T.title, paddingVertical: 10 },
     pill: {
       borderRadius: R.pill,

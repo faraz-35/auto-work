@@ -1,9 +1,10 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { C, R, S, T, W } from '../theme';
 import { useStyles } from './useStyles';
 import { Stepper } from './ui';
+import { TimeWheels } from './TimeWheels';
 import { addDays, localDate } from '../logic/rotation';
 import { formatTime12 } from '../logic/human';
 
@@ -22,7 +23,7 @@ export const ordinal = (n: number) =>
   `${n}${n === 1 || n === 21 ? 'st' : n === 2 || n === 22 ? 'nd' : n === 3 || n === 23 ? 'rd' : 'th'}`;
 
 const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const DOW_LETTER = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+export const DOW_LETTER = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
 /** Helping shortcuts — one tap to a human time, fine-tune with the stepper. */
 const PRESETS: [keyof typeof Ionicons.glyphMap, string][] = [
@@ -31,23 +32,21 @@ const PRESETS: [keyof typeof Ionicons.glyphMap, string][] = [
   ['moon-outline', '21:00'],
 ];
 
-const stepTime = (t: string, dir: number) => {
-  const [h, m] = t.split(':').map(Number);
-  const total = Math.min(1425, Math.max(0, h * 60 + m + dir * 15));
-  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
-};
-
 const dayOf = (dateStr: string) => new Date(dateStr + 'T00:00:00Z').getUTCDay();
 
-/** The whole schedule in one control: once or repeat, the day(s), the time.
- *  Symbols carry the meaning; words only help. */
-export function WhenEditor({ value, onChange }: {
+/** The whole schedule in one control: once or repeat, the day(s), the time —
+ *  and the alarm toggle lives with the time it rings at. Preset icons sit
+ *  left; the exact time spins open the snap wheels. */
+export function WhenEditor({ value, onChange, strict, onStrictChange }: {
   value: Schedule;
   onChange: (s: Schedule) => void;
+  strict: boolean;
+  onStrictChange: (v: boolean) => void;
 }) {
   const set = (patch: Partial<Schedule>) => onChange({ ...value, ...patch });
   const styles = useStyles(makeStyles);
   const stripRef = useRef<ScrollView>(null);
+  const [wheelsOpen, setWheelsOpen] = useState(false);
   const today = localDate();
   const days = Array.from({ length: 14 }, (_, i) => addDays(today, i));
 
@@ -163,11 +162,6 @@ export function WhenEditor({ value, onChange }: {
       )}
 
       <View style={styles.timeRow}>
-        <Stepper
-          value={formatTime12(value.time)}
-          onDec={() => set({ time: stepTime(value.time, -15) })}
-          onInc={() => set({ time: stepTime(value.time, 15) })}
-        />
         <View style={styles.presets}>
           {PRESETS.map(([icon, t]) => {
             const on = value.time === t;
@@ -185,7 +179,32 @@ export function WhenEditor({ value, onChange }: {
             );
           })}
         </View>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Time, ${formatTime12(value.time)}. Tap to change.`}
+          accessibilityState={{ expanded: wheelsOpen }}
+          onPress={() => setWheelsOpen(!wheelsOpen)}
+          style={[styles.timeField, wheelsOpen && styles.timeFieldOn]}
+        >
+          <Ionicons name="time-outline" size={15} color={wheelsOpen ? C.accent : C.dim} />
+          <Text style={styles.timeText}>{formatTime12(value.time)}</Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={strict ? 'Alarm rings at the deadline — tap to turn off' : 'No alarm — tap to ring one at the deadline'}
+          accessibilityState={{ selected: strict }}
+          onPress={() => onStrictChange(!strict)}
+          style={[styles.preset, strict && styles.alarmOn]}
+        >
+          <Ionicons
+            name={strict ? 'notifications' : 'notifications-off-outline'}
+            size={16}
+            color={strict ? C.warn : C.dim}
+          />
+        </Pressable>
       </View>
+
+      {wheelsOpen && <TimeWheels time={value.time} onChange={(t) => set({ time: t })} />}
     </View>
   );
 }
@@ -239,8 +258,20 @@ const makeStyles = () => StyleSheet.create({
     borderColor: 'transparent',
   },
   dowText: { color: C.dim, fontSize: T.body, fontWeight: W.semibold },
-  timeRow: { flexDirection: 'row', alignItems: 'center' },
-  presets: { flexDirection: 'row', gap: 6, marginLeft: 'auto' },
+  timeRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  presets: { flexDirection: 'row', gap: 6 },
+  timeField: {
+    marginLeft: 'auto',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: C.inputBg,
+    borderRadius: R.pill,
+    height: 34,
+    paddingHorizontal: 12,
+  },
+  timeFieldOn: { backgroundColor: C.accentBg, borderWidth: 1, borderColor: C.border },
+  timeText: { color: C.text, fontSize: T.body, fontWeight: W.semibold, fontVariant: ['tabular-nums'] },
   preset: {
     width: 32,
     height: 32,
@@ -252,4 +283,5 @@ const makeStyles = () => StyleSheet.create({
     borderColor: 'transparent',
   },
   presetOn: { borderColor: C.accent, backgroundColor: C.accentBg },
+  alarmOn: { borderColor: C.warn, backgroundColor: C.warnBg },
 });

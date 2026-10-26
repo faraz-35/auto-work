@@ -6,9 +6,10 @@ import { Screen } from '../components/Screen';
 import { Btn, Card, Fab, Pill, Row, SectionTitle, roles } from '../components/ui';
 import { Sheet } from '../components/Sheet';
 import { ChoreModal } from '../components/ChoreModal';
+import { ScheduleStrip } from '../components/ScheduleStrip';
 import { useApp } from '../state/AppContext';
 import { houseStats } from '../logic/stats';
-import { formatDay, formatShortDate, formatTime12, formatTimeOf, scheduleLabel } from '../logic/human';
+import { formatDay, formatTime12, formatTimeOf } from '../logic/human';
 import { assigneeFor, eventFor, localDateOf, nextForMe, occursOn } from '../logic/rotation';
 import { errorMessage } from '../logic/errors';
 import type { Chore } from '../types';
@@ -76,8 +77,6 @@ export function HomeScreen() {
   return (
     <Screen>
       <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-        <SectionTitle>{`Your day · ${formatShortDate(today)}`}</SectionTitle>
-
         {stale && <Text style={styles.stale}>showing saved state — refreshing…</Text>}
         {error && !stale && <Text style={styles.stale}>{error}</Text>}
 
@@ -103,11 +102,7 @@ export function HomeScreen() {
                 </Row>
               </Row>
               {c.note && <Text style={styles.meta}>{c.note}</Text>}
-              <Row style={{ justifyContent: 'space-between' }}>
-                <Text style={styles.meta}>
-                  {scheduleLabel(c)}
-                </Text>
-              </Row>
+              <ScheduleStrip chore={c} />
               <Btn title="Done" compact onPress={() => guard(() => actions.completeChore(c.id))} />
               {/* parked — swap logic (SwapModal below, requests feed) stays; only this entry point is hidden
               {(c.rotate || c.repeat_days != null) && (

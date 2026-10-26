@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Alert, StyleSheet, TextInput, View } from 'react-native';
+import { Alert, StyleSheet, TextInput } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { C, T, W } from '../theme';
 import { useStyles } from './useStyles';
@@ -66,11 +66,11 @@ type Props = {
   editing?: Chore | null;
 };
 
-/** Create / edit a chore. One input line, one strip of detail tokens, add.
- *  People multi-select (everyone picked gets the chore); the sync toggle
- *  turns the selection into a daily rotation. Once or repeat — daily,
- *  weekly (picked weekdays) or monthly — lives in the WhenEditor. Strict
- *  chores ring a real alarm on the assignee's phone. */
+/** Create / edit a chore. One input line, one strip of detail tokens, the
+ *  note (always open, two lines), add. People multi-select (everyone picked
+ *  gets the chore); the sync toggle turns the selection into a daily rotation.
+ *  Once or repeat — daily, weekly (picked weekdays) or monthly — lives in the
+ *  WhenEditor, which also carries the alarm toggle beside the time. */
 export function ChoreModal({ visible, onClose, editing = null }: Props) {
   const { members, me, actions } = useApp();
   const styles = useStyles(makeStyles);
@@ -81,7 +81,7 @@ export function ChoreModal({ visible, onClose, editing = null }: Props) {
   const [rotate, setRotate] = useState(true);
   const [strict, setStrict] = useState(false);
   const [schedule, setSchedule] = useState<Schedule>(freshSchedule);
-  const [open, setOpen] = useState<'who' | 'when' | 'more' | null>(null);
+  const [open, setOpen] = useState<'who' | 'when' | null>(null);
   const [busy, setBusy] = useState(false);
   const [ready, setReady] = useState(false);  // draft restored — persisting may start
 
@@ -153,7 +153,7 @@ export function ChoreModal({ visible, onClose, editing = null }: Props) {
   const nameOf = (id: string) => members.find((m) => m.id === id)?.name ?? '?';
   const togglePerson = (id: string) =>
     setPeople((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
-  const toggle = (key: 'who' | 'when' | 'more') => setOpen((cur) => (cur === key ? null : key));
+  const toggle = (key: 'who' | 'when') => setOpen((cur) => (cur === key ? null : key));
 
   const whoLabel = () => {
     if (rotate) return people.length === 0 ? 'Everyone' : people.map(nameOf).join(', ');
@@ -164,15 +164,14 @@ export function ChoreModal({ visible, onClose, editing = null }: Props) {
 
   const whenLabel = () => {
     const at = compactTime(schedule.time);
-    if (schedule.kind === 'once') return `${formatDay(schedule.date)} ${at}`;
-    if (schedule.repeat === 'daily') {
-      return schedule.interval === 1 ? `Daily ${at}` : `Every ${schedule.interval} days ${at}`;
-    }
-    if (schedule.repeat === 'weekly') return `Weekly ${at}`;
-    return `Monthly on the ${ordinal(schedule.monthlyDay)} ${at}`;
+    let label: string;
+    if (schedule.kind === 'once') label = `${formatDay(schedule.date)} ${at}`;
+    else if (schedule.repeat === 'daily') {
+      label = schedule.interval === 1 ? `Daily ${at}` : `Every ${schedule.interval} days ${at}`;
+    } else if (schedule.repeat === 'weekly') label = `Weekly ${at}`;
+    else label = `Monthly on the ${ordinal(schedule.monthlyDay)} ${at}`;
+    return strict ? `${label} · alarm` : label;
   };
-
-  const notePreview = note.trim();
 
   const submit = async () => {
     try {
@@ -252,24 +251,7 @@ export function ChoreModal({ visible, onClose, editing = null }: Props) {
           onPress={() => toggle('who')}
         />
         <Token icon="calendar-outline" label={whenLabel()} active={open === 'when'} shrink onPress={() => toggle('when')} />
-        <Token
-          icon={strict ? 'notifications' : 'notifications-off-outline'}
-          active={strict}
-          tone="warn"
-          accessibilityLabel={strict ? 'Alarm rings at the deadline — tap to turn off' : 'No alarm — tap to ring one at the deadline'}
-          onPress={() => setStrict(!strict)}
-        />
       </Row>
-      <View style={{ alignSelf: 'flex-start' }}>
-        <Token
-          icon="ellipsis-horizontal"
-          chevron
-          label={open === 'more' ? 'Less' : notePreview !== '' ? notePreview : 'Note'}
-          active={open === 'more'}
-          accessibilityLabel={open === 'more' ? 'Hide the note field' : 'Show the note field'}
-          onPress={() => toggle('more')}
-        />
-      </View>
 
       {open === 'who' && (
         <Row style={{ flexWrap: 'wrap' }}>
@@ -290,11 +272,16 @@ export function ChoreModal({ visible, onClose, editing = null }: Props) {
         </Row>
       )}
 
-      {open === 'when' && <WhenEditor value={schedule} onChange={setSchedule} />}
-
-      {open === 'more' && (
-        <IconField icon="create-outline" value={note} onChangeText={setNote} placeholder="Note" />
+      {open === 'when' && (
+        <WhenEditor
+          value={schedule}
+          onChange={setSchedule}
+          strict={strict}
+          onStrictChange={setStrict}
+        />
       )}
+
+      <IconField icon="create-outline" value={note} onChangeText={setNote} placeholder="Note" multiline />
 
       <Btn title={editing ? 'Save changes' : 'Add chore'} onPress={submit} loading={busy} />
     </Sheet>
