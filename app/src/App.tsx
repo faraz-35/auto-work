@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { StyleSheet, Text, View, useColorScheme } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { DarkTheme, NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -27,13 +27,9 @@ function Root() {
   const { phase, error, actions } = useApp();
   const styles = useStyles(makeStyles);
 
+  // lasts one frame of local reads — the snapshot renders before any network
   if (phase === 'boot') {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator color={C.accent} size="large" />
-        <Text style={styles.bootText}>waking this phone up…</Text>
-      </View>
-    );
+    return <View style={styles.center} />;
   }
 
   if (phase === 'pick') {
@@ -127,8 +123,7 @@ export default function App() {
 
 const makeStyles = () =>
   StyleSheet.create({
-    center: { flex: 1, backgroundColor: C.bg, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 32 },
-    bootText: { color: C.dim, fontSize: T.body },
+    center: { flex: 1, backgroundColor: C.bg },
     errorTitle: { color: C.bad, fontSize: T.hero, fontWeight: W.bold },
     errorBody: { color: C.dim, fontSize: T.body, textAlign: 'center' },
     press: { color: C.accent, fontSize: T.title, fontWeight: W.bold, marginTop: 8 },

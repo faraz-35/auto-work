@@ -12,3 +12,5 @@ export const TZ_OFFSET = '+05:00';
 export const PROFILE_KEY = 'ghar.profile.v2';
 export const SNAPSHOT_KEY = 'ghar.snapshot';
 export const CHORE_DRAFT_KEY = 'ghar.choreDraft';
+export const SEEN_KEY = 'ghar.seenAssignments';
+export const SEEN_INIT_KEY = 'ghar.seenAssignments.init';

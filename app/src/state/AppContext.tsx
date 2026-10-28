@@ -6,12 +6,17 @@ import type { ChoreDraft } from '../db/api';
 import type { ChoreOverrides } from '../logic/rotation';
 import { localDate } from '../logic/rotation';
 import { computeDesiredAlarms } from '../logic/alarms';
+import { computeReminders } from '../notify/logic';
+import { notifyAssignments, syncReminders } from '../notify/sync';
+import { defineSyncTask, disableSyncTask, enableSyncTask } from '../notify/background';
 import { errorMessage } from '../logic/errors';
 import { ensureDeviceSession } from '../db/client';
 import * as api from '../db/api';
 import { loadSnapshot, saveSnapshot, type SnapshotData } from './snapshot';
 import { clearProfile, loadProfile, saveProfile } from './profile';
 import { watchHousehold } from './realtime';
+
+defineSyncTask();
 
 type Phase = 'boot' | 'pick' | 'error' | 'ready';
 
@@ -78,6 +83,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         clearProfile();
         setProfile(null);
         setPhase('pick');
+        void disableSyncTask().catch(() => undefined);
         return;
       }
       setHousehold(data.household);
@@ -94,6 +100,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         events: data.events, overrides: data.overrides, swaps: data.swaps,
       };
       saveSnapshot(snapshot);
+      const meNow = data.members.find((m) => m.id === profile.memberId);
+      if (meNow) void notifyAssignments(data.chores, data.members, meNow);
     } catch (e) {
       setError(errorMessage(e));  // offline: keep showing the snapshot
     }
@@ -102,27 +110,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // bootstrap: the device signs itself in invisibly. With a saved profile it
   // renders straight from the cached snapshot; without one it asks "who are
   // you?" — the picked person's data loads from there. No name is invented.
+  // The session is repaired off the render path, so a cold open is instant.
   useEffect(() => {
     (async () => {
-      try {
-        const [cachedProfile, snapshot] = await Promise.all([loadProfile(), loadSnapshot()]);
-        await ensureDeviceSession();
-        if (snapshot) {
-          setHousehold(snapshot.household);
-          setMembers(snapshot.members);
-          setChores(snapshot.chores);
-          setEvents(snapshot.events);
-          setOverrides(snapshot.overrides ?? {});
-          setSwaps(snapshot.swaps ?? []);
-          setStale(true);
-        }
-        setProfile(cachedProfile);
-        setPhase(cachedProfile ? 'ready' : 'pick');
-      } catch (e) {
-        setError(errorMessage(e));
-        setPhase('error');
+      const [cachedProfile, snapshot] = await Promise.all([loadProfile(), loadSnapshot()]);
+      if (snapshot) {
+        setHousehold(snapshot.household);
+        setMembers(snapshot.members);
+        setChores(snapshot.chores);
+        setEvents(snapshot.events);
+        setOverrides(snapshot.overrides ?? {});
+        setSwaps(snapshot.swaps ?? []);
+        setStale(true);
       }
-    })();
+      setProfile(cachedProfile);
+      setPhase(cachedProfile ? 'ready' : 'pick');
+      if (!cachedProfile) {
+        ensureDeviceSession().catch((e) => setError(errorMessage(e)));  // the picker needs it for claiming
+      }
+    })().catch((e) => {
+      setError(errorMessage(e));
+      setPhase('error');
+    });
   }, [reloadKey]);
 
   useEffect(() => {
@@ -145,6 +154,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (phase !== 'ready') return;
     void PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS).catch(() => undefined);
+    enableSyncTask().catch((e) => console.warn('background task', errorMessage(e)));
   }, [phase]);
 
   const me = useMemo(
@@ -167,6 +177,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (phase !== 'ready') return;
     syncAlarms(desiredAlarms, setError);
   }, [phase, desiredAlarms]);
+
+  // same reconcile for quiet deadline reminders (30/10 min before, an hour after)
+  const desiredReminders = useMemo(
+    () => computeReminders(me, members, chores, events, overrides),
+    [me, members, chores, events, overrides]
+  );
+  useEffect(() => {
+    if (phase !== 'ready') return;
+    syncReminders(desiredReminders, setError);
+  }, [phase, desiredReminders]);
 
   // a minute ticker so "today" rolls over on screen and stale days age out
   useEffect(() => {
@@ -192,6 +212,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     },
 
     async claimIdentity(memberId) {
+      await ensureDeviceSession();
       const p = await api.claimMember(memberId);
       saveProfile(p);
       setError(null);

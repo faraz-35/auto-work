@@ -12,9 +12,19 @@ export const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 
 /**
  * Sign this phone in as one of the pre-provisioned pool devices.
- * Idempotent: returns once a session exists.
+ * Idempotent: returns once a session exists. Concurrent callers share one
+ * attempt so a fresh install never claims two pool accounts.
  */
-export async function ensureDeviceSession(): Promise<void> {
+let sessionAttempt: Promise<void> | null = null;
+
+export function ensureDeviceSession(): Promise<void> {
+  if (!sessionAttempt) {
+    sessionAttempt = claimDeviceSession().finally(() => { sessionAttempt = null; });
+  }
+  return sessionAttempt;
+}
+
+async function claimDeviceSession(): Promise<void> {
   const { data } = await db.auth.getSession();
   if (data.session) {
     // a cached session can outlive its refresh token — one cheap call proves

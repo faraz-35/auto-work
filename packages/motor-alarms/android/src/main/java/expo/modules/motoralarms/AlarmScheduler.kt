@@ -1,6 +1,7 @@
 package expo.modules.motoralarms
 
 import android.app.AlarmManager
+import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -8,10 +9,12 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.os.Build
 import android.media.AudioAttributes
 import android.net.Uri
 import android.os.PowerManager
 import android.provider.Settings
+import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import org.json.JSONObject
 
@@ -26,15 +29,20 @@ import org.json.JSONObject
 object AlarmScheduler {
   private const val PREFS = "motor_alarms"
   private const val KEY_ALARMS = "alarms"
+  private const val KEY_REMINDERS = "reminders"
   private const val KEY_SNOOZE_MINUTES = "snooze_minutes"
 
   const val ACTION_PREFIX = "expo.modules.motoralarms.ALARM/"
+  const val ACTION_REMINDER_PREFIX = "expo.modules.motoralarms.REMINDER/"
   const val ACTION_SNOOZE = "expo.modules.motoralarms.ACTION_SNOOZE"
   const val EXTRA_SNOOZE_ID = "snooze_id"
   const val CHANNEL_ALARM = "ghar_alarm"
+  const val CHANNEL_ALERTS = "ghar_alerts"
   private const val NOTIF_BASE = 2000
+  private const val ALERT_NOTIF_BASE = 1_100_000
 
   data class Alarm(val id: String, val at: Long, val title: String, val body: String, val rechain: Boolean)
+  data class Reminder(val id: String, val at: Long, val title: String, val body: String)
 
   private fun prefs(ctx: Context) = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
@@ -57,9 +65,20 @@ object AlarmScheduler {
         setBypassDnd(true)
       }
     )
+
+    // quiet alerts keep whatever the user changes, so create-if-missing only
+    if (nm.getNotificationChannel(CHANNEL_ALERTS) == null) {
+      nm.createNotificationChannel(
+        NotificationChannel(CHANNEL_ALERTS, "Task alerts", NotificationManager.IMPORTANCE_DEFAULT).apply {
+          description = "New tasks for you and deadline reminders"
+        }
+      )
+    }
   }
 
   fun notifId(id: String): Int = NOTIF_BASE + (Math.abs(id.hashCode()) % 1_000_000)
+
+  fun alertNotifId(id: String): Int = ALERT_NOTIF_BASE + (Math.abs(id.hashCode()) % 100_000)
 
   private fun actionFor(id: String) = ACTION_PREFIX + id
 
@@ -163,12 +182,112 @@ object AlarmScheduler {
     arm(ctx, id, entry, at)
   }
 
-  /** Re-arm everything still in the future after a reboot; drop the past. */
+  /** Re-arm everything still in the future after a reboot; drop the past.
+   *  Covers alarms and quiet reminders. */
   fun rearmAll(ctx: Context) {
     val now = System.currentTimeMillis()
     val keep = alarms(ctx).filterValues { it.at > now }
     for ((id, a) in keep) arm(ctx, id, a, a.at)
     save(ctx, keep)
+    val reminders = reminders(ctx).filterValues { it.at > now }
+    for ((id, r) in reminders) armReminder(ctx, id, r, r.at)
+    saveReminders(ctx, reminders)
+  }
+
+  // ---- quiet reminders (same reconcile, no takeover) ----
+
+  fun reminders(ctx: Context): Map<String, Reminder> {
+    val blob = prefs(ctx).getString(KEY_REMINDERS, null) ?: return emptyMap()
+    val out = mutableMapOf<String, Reminder>()
+    val root = JSONObject(blob)
+    for (id in root.keys()) {
+      val o = root.getJSONObject(id)
+      out[id] = Reminder(id, o.getLong("at"), o.getString("title"), o.getString("body"))
+    }
+    return out
+  }
+
+  private fun saveReminders(ctx: Context, set: Map<String, Reminder>) {
+    val root = JSONObject()
+    for ((id, r) in set) {
+      root.put(id, JSONObject().put("at", r.at).put("title", r.title).put("body", r.body))
+    }
+    prefs(ctx).edit().putString(KEY_REMINDERS, root.toString()).apply()
+  }
+
+  fun syncReminders(ctx: Context, json: String) {
+    val desired = mutableMapOf<String, Reminder>()
+    val root = JSONObject(json)
+    val now = System.currentTimeMillis()
+    for (id in root.keys()) {
+      val o = root.getJSONObject(id)
+      val at = o.getLong("at")
+      if (at <= now) continue
+      desired[id] = Reminder(id, at, o.getString("title"), o.getString("body"))
+    }
+    for (id in reminders(ctx).keys) if (id !in desired) cancelReminder(ctx, id)
+    for ((id, r) in desired) armReminder(ctx, id, r, r.at)
+    saveReminders(ctx, desired)
+  }
+
+  private fun reminderPending(ctx: Context, r: Reminder): PendingIntent {
+    val intent = Intent(ctx, ReminderReceiver::class.java)
+      .setAction(ACTION_REMINDER_PREFIX + r.id)
+      .putExtra(ReminderReceiver.EXTRA_ID, r.id)
+      .putExtra(ReminderReceiver.EXTRA_TITLE, r.title)
+      .putExtra(ReminderReceiver.EXTRA_BODY, r.body)
+    return PendingIntent.getBroadcast(
+      ctx, r.id.hashCode(), intent,
+      PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+    )
+  }
+
+  private fun armReminder(ctx: Context, id: String, r: Reminder, atMs: Long) {
+    val am = ctx.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+    val pi = reminderPending(ctx, r)
+    // exact grants come from USE_EXACT_ALARM (33+) or the user toggle (31/32);
+    // below 31 exact alarms need no permission
+    val exact = Build.VERSION.SDK_INT < 31 || am.canScheduleExactAlarms()
+    if (exact) am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, atMs, pi)
+    else am.setWindow(AlarmManager.RTC_WAKEUP, atMs, 10 * 60_000L, pi)
+  }
+
+  private fun cancelReminder(ctx: Context, id: String) {
+    val am = ctx.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+    am.cancel(reminderPending(ctx, Reminder(id, 0, "", "")))
+    NotificationManagerCompat.from(ctx).cancel(alertNotifId(id))
+  }
+
+  /** Reminders fire once; JS re-arms the next occurrences on every sync. */
+  fun onReminderFired(ctx: Context, id: String) {
+    val current = reminders(ctx).toMutableMap()
+    if (current.remove(id) != null) saveReminders(ctx, current)
+  }
+
+  /** One quiet notification on the Task alerts channel. */
+  fun postAlert(ctx: Context, id: String, title: String, body: String) {
+    ensureChannels(ctx)
+    try {
+      NotificationManagerCompat.from(ctx).notify(alertNotifId(id), alertNotification(ctx, title, body))
+    } catch (_: SecurityException) {
+      // notifications not granted; nothing to post
+    }
+  }
+
+  fun alertNotification(ctx: Context, title: String, body: String): Notification {
+    val launch = ctx.packageManager.getLaunchIntentForPackage(ctx.packageName)?.let {
+      PendingIntent.getActivity(
+        ctx, 1, it,
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+      )
+    }
+    return NotificationCompat.Builder(ctx, CHANNEL_ALERTS)
+      .setSmallIcon(R.drawable.ic_motor_stat)
+      .setContentTitle(title)
+      .setContentText(body)
+      .setAutoCancel(true)
+      .setContentIntent(launch)
+      .build()
   }
 
   fun setSnoozeMinutes(ctx: Context, minutes: Int) {

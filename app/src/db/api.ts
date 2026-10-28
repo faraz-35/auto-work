@@ -1,6 +1,6 @@
 import type { Chore, ChoreEvent, Household, Member, Profile, Purchase, Swap } from '../types';
 import { addDays, localDate, overrideKey, ChoreOverrides } from '../logic/rotation';
-import { db } from './client';
+import { db, ensureDeviceSession } from './client';
 
 export type HouseholdData = {
   household: Household;
@@ -49,6 +49,7 @@ export async function fetchHouseholdData(householdId: string): Promise<Household
 export type RosterEntry = { id: string; name: string };
 
 export async function householdRoster(): Promise<RosterEntry[]> {
+  await ensureDeviceSession();  // the picker renders before the session lands
   const { data, error } = await db.rpc('household_roster');
   if (error) throw error;
   const rows = Array.isArray(data) ? data : [];

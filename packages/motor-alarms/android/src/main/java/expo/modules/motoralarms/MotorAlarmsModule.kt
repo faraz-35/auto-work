@@ -19,6 +19,19 @@ class MotorAlarmsModule : Module() {
       AlarmScheduler.syncAlarms(c, json)
     }
 
+    // Same reconcile for quiet deadline reminders: {"<id>": {at, title, body}}.
+    AsyncFunction("syncReminders") { json: String ->
+      val c = ctx ?: throw IllegalStateException("no context")
+      AlarmScheduler.ensureChannels(c)
+      AlarmScheduler.syncReminders(c, json)
+    }
+
+    // One quiet notification on the Task alerts channel.
+    AsyncFunction("notify") { id: String, title: String, body: String ->
+      val c = ctx ?: throw IllegalStateException("no context")
+      AlarmScheduler.postAlert(c, id, title, body)
+    }
+
     AsyncFunction("snoozeAlarm") { id: String, minutes: Int ->
       ctx?.let { AlarmScheduler.snooze(it, id, minutes) }
     }
